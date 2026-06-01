@@ -1,10 +1,8 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, UpdateDateColumn } from 'typeorm';
+import { UuidV7Entity } from '../common/entities/uuid-v7.entity';
 
 @Entity({ name: 'tenants' })
-export class Tenant {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class Tenant extends UuidV7Entity {
   @Index({ unique: true })
   @Column({ length: 120 })
   slug: string;

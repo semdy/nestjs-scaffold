@@ -4,7 +4,6 @@ import {
   Entity,
   Index,
   ManyToOne,
-  PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
@@ -13,12 +12,9 @@ import { Tenant } from '../tenancy/tenant.entity';
 import { TenantScopedEntity } from '../tenancy/tenant-scoped.entity';
 
 @Entity({ name: 'users' })
-@Unique(['tenantId', 'email'])
+@Index('IDX_users_tenant_active_created_at', ['tenantId', 'active', 'createdAt'])
+@Unique('UQ_users_tenant_email', ['tenantId', 'email'])
 export class User extends TenantScopedEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Index()
   @Column({ length: 180 })
   email: string;
 

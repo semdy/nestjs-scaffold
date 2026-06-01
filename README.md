@@ -7,6 +7,7 @@
 - RabbitMQ 发布服务
 - OpenAPI / Swagger
 - JWT 鉴权、RBAC 角色守卫
+- Access token + refresh token 模式，refresh token 存库并只保存哈希
 - 请求级多租户隔离，默认通过 `x-tenant-id` 贯穿上下文
 - 全局异常过滤器、局部异常过滤器示例
 - 全局参数校验、响应包裹、限流、安全头、压缩
@@ -58,6 +59,44 @@ curl -X POST http://localhost:3000/api/auth/login \
   -H 'content-type: application/json' \
   -H 'x-tenant-id: <tenantId>' \
   -d '{"email":"admin@example.com","password":"change-me-123"}'
+```
+
+登录会返回：
+
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "...",
+  "user": {}
+}
+```
+
+`accessToken` 默认 2 小时过期，可通过 `JWT_EXPIRES_IN=2h` 调整。`refreshToken` 默认 30 天过期，可通过 `REFRESH_TOKEN_EXPIRES_IN_DAYS=30` 调整。
+
+刷新 token:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/refresh \
+  -H 'content-type: application/json' \
+  -d '{"refreshToken":"<refreshToken>"}'
+```
+
+刷新成功会返回新的 `accessToken` 和新的 `refreshToken`，旧 refresh token 会被吊销。refresh token 无效或过期时返回 `401`，响应体里的 `code` 可用于前端跳登录页：
+
+```json
+{
+  "statusCode": 401,
+  "message": "Refresh token has expired",
+  "code": "REFRESH_TOKEN_EXPIRED"
+}
+```
+
+退出登录:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/logout \
+  -H 'content-type: application/json' \
+  -d '{"refreshToken":"<refreshToken>"}'
 ```
 
 ## 切换 Fastify
@@ -113,7 +152,25 @@ src/
 
 ## 多租户约定
 
-所有租户隔离实体继承 `TenantScopedEntity` 并带 `tenantId` 字段。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并显式加入 `where` 条件。全局 `TenantGuard` 会拒绝缺失租户头或 token 租户与请求租户不一致的请求。
+所有实体主键默认继承 `UuidV7Entity`，使用应用层生成的 UUID v7，兼顾分布式 ID 与索引写入局部性。所有租户隔离实体继承 `TenantScopedEntity` 并带 `tenantId` 字段。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并显式加入 `where` 条件。全局 `TenantGuard` 会拒绝缺失租户头或 token 租户与请求租户不一致的请求。
+
+## 索引约定
+
+当前初始 schema 已包含基础索引：
+
+- `tenants.slug` 唯一索引，用于租户 slug 查找
+- `users(tenantId, email)` 唯一约束，用于同租户内邮箱唯一和登录查询
+- `users(tenantId, active, createdAt)` 复合索引，用于租户用户列表
+- `refresh_tokens.tokenHash` 唯一索引，用于 refresh token 校验
+- `refresh_tokens(userId, revokedAt, expiresAt)` 复合索引，用于用户 token 管理和过期 token 清理
+
+新增业务模块时，不建议只给单列盲目加索引。优先根据查询条件和排序方向设计复合索引，例如多租户表常见模式是：
+
+```text
+(tenantId, status, createdAt)
+(tenantId, userId, createdAt)
+(tenantId, externalId)
+```
 
 ## 常用命令
 
@@ -123,4 +180,36 @@ npm run lint
 npm run test
 npm run migration:generate -- src/database/migrations/Init
 npm run migration:run
+```
+
+## Migration 模式
+
+开发初期可以用：
+
+```env
+DB_SYNCHRONIZE=true
+```
+
+如果要改成 migration 管理表结构，建议：
+
+```env
+DB_SYNCHRONIZE=false
+```
+
+然后执行：
+
+```bash
+npm run migration:run
+```
+
+项目内置了一个初始 migration 示例：
+
+```text
+src/database/migrations/1764576000000-InitSchema.ts
+```
+
+后续修改 entity 后，可以生成新的 migration：
+
+```bash
+npm run migration:generate -- src/database/migrations/AddOrders
 ```
