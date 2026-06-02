@@ -25,6 +25,8 @@ export const envValidationSchema = Joi.object({
   REDIS_DB: Joi.number().integer().min(0).default(0),
   RABBITMQ_URL: Joi.string().uri().required(),
   RABBITMQ_QUEUE: Joi.string().required(),
+  RABBITMQ_CONSUMER_ENABLED: Joi.boolean().default(true),
+  RABBITMQ_PREFETCH: Joi.number().integer().positive().default(10),
   SWAGGER_ENABLED: Joi.boolean().default(true),
   SWAGGER_PATH: Joi.string().default('docs'),
   RATE_LIMIT_TTL: Joi.number().integer().positive().default(60000),

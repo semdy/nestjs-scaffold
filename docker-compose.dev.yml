@@ -17,6 +17,20 @@ services:
       - redis
       - rabbitmq
 
+  migrate:
+    build:
+      context: .
+      target: deps
+    command: npm run migration:run
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+
   postgres:
     image: postgres:17-alpine
     environment:

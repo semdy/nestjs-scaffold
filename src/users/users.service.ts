@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
+import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
+import { RabbitmqService } from '../queue/rabbitmq.service';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User } from './user.entity';
@@ -13,6 +15,7 @@ export class UsersService {
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly tenancyContext: TenancyContext,
     private readonly configService: ConfigService,
+    private readonly rabbitmqService: RabbitmqService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -25,7 +28,7 @@ export class UsersService {
     const rounds = this.configService.get<number>('BCRYPT_ROUNDS', 12);
     const passwordHash = await bcrypt.hash(dto.password, rounds);
 
-    return this.users.save(
+    const user = await this.users.save(
       this.users.create({
         tenantId,
         email: dto.email.toLowerCase(),
@@ -34,6 +37,15 @@ export class UsersService {
         role: dto.role ?? 'member',
       }),
     );
+
+    await this.rabbitmqService.publish(USER_CREATED_ROUTING_KEY, {
+      userId: user.id,
+      tenantId: user.tenantId,
+      email: user.email,
+      occurredAt: new Date().toISOString(),
+    });
+
+    return user;
   }
 
   async findAllForTenant(): Promise<User[]> {

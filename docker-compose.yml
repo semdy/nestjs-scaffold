@@ -7,13 +7,23 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+
+  migrate:
+    build: .
+    command: npm run migration:run:prod
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:17-alpine

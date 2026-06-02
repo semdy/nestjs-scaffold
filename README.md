@@ -4,7 +4,7 @@
 
 - PostgreSQL / MySQL，通过 `DB_TYPE=postgres|mysql` 切换
 - Redis 客户端
-- RabbitMQ 发布服务
+- RabbitMQ 发布与消费示例
 - OpenAPI / Swagger
 - JWT 鉴权、RBAC 角色守卫
 - Access token + refresh token 模式，refresh token 存库并只保存哈希
@@ -180,6 +180,7 @@ npm run lint
 npm run test
 npm run migration:generate -- src/database/migrations/Init
 npm run migration:run
+npm run migration:run:prod
 ```
 
 ## Migration 模式
@@ -202,6 +203,24 @@ DB_SYNCHRONIZE=false
 npm run migration:run
 ```
 
+生产 Docker Compose 内置了一个一次性 `migrate` 服务，`api` 会等待 `migrate` 成功后再启动：
+
+```bash
+docker compose up --build -d
+```
+
+也可以显式只跑 migration：
+
+```bash
+docker compose run --rm migrate
+```
+
+开发 Compose 里也提供了 `migrate` 服务：
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm migrate
+```
+
 项目内置了一个初始 migration 示例：
 
 ```text
@@ -212,4 +231,26 @@ src/database/migrations/1764576000000-InitSchema.ts
 
 ```bash
 npm run migration:generate -- src/database/migrations/AddOrders
+```
+
+## RabbitMQ 消费示例
+
+`UsersService.create()` 创建用户后会发布 `user.created` 事件。`RabbitmqConsumer` 会消费 `RABBITMQ_QUEUE`，根据 `routingKey` 分发到对应 handler：
+
+```text
+src/queue/rabbitmq.consumer.ts
+src/queue/handlers/user-created.handler.ts
+src/queue/events/user-created.event.ts
+```
+
+消费失败时消息会 `nack` 且不重新入队，并进入默认死信队列：
+
+```text
+${RABBITMQ_QUEUE}.dlq
+```
+
+如果只想让 API 发布消息，不在当前进程消费，可设置：
+
+```env
+RABBITMQ_CONSUMER_ENABLED=false
 ```

@@ -1,4 +1,4 @@
-.PHONY: install dev infra infra-mysql up down build test lint
+.PHONY: install dev infra infra-mysql migrate up down build test lint
 
 install:
 	npm install
@@ -11,6 +11,9 @@ infra-mysql:
 
 dev:
 	npm run start:dev
+
+migrate:
+	npm run migration:run
 
 up:
 	docker compose up --build -d
