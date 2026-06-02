@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { RefreshToken } from '../auth/refresh-token.entity';
+import { OutboxEvent } from '../queue/outbox-event.entity';
 import { Tenant } from '../tenancy/tenant.entity';
 import { User } from '../users/user.entity';
 
@@ -13,7 +14,7 @@ export const dataSourceOptions: DataSourceOptions = {
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  entities: [Tenant, User, RefreshToken],
+  entities: [Tenant, User, RefreshToken, OutboxEvent],
   migrations: ['dist/database/migrations/*.js'],
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',

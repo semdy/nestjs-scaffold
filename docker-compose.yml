@@ -4,6 +4,10 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      DB_HOST: ${DOCKER_DB_HOST:-postgres}
+      REDIS_HOST: redis
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
@@ -21,12 +25,15 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      DB_HOST: ${DOCKER_DB_HOST:-postgres}
     depends_on:
       postgres:
         condition: service_healthy
 
   postgres:
     image: postgres:17-alpine
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
     environment:
       POSTGRES_USER: ${DB_USERNAME:-app}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-app}
@@ -44,6 +51,15 @@ services:
   mysql:
     image: mysql:9
     profiles: ["mysql"]
+    command:
+      [
+        "--server-id=223344",
+        "--log-bin=mysql-bin",
+        "--binlog-format=ROW",
+        "--binlog-row-image=FULL",
+        "--gtid-mode=ON",
+        "--enforce-gtid-consistency=ON",
+      ]
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_USER: ${DB_USERNAME:-app}
@@ -77,13 +93,47 @@ services:
       - "15672:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  debezium:
+    image: debezium/server:3.3
+    profiles: ["cdc"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      DEBEZIUM_SOURCE_DATABASE_HOST: ${DEBEZIUM_SOURCE_DATABASE_HOST:-postgres}
+      DEBEZIUM_SOURCE_DATABASE_PORT: ${DEBEZIUM_SOURCE_DATABASE_PORT:-5432}
+      DEBEZIUM_SOURCE_DATABASE_USER: ${DEBEZIUM_SOURCE_DATABASE_USER:-app}
+      DEBEZIUM_SOURCE_DATABASE_PASSWORD: ${DEBEZIUM_SOURCE_DATABASE_PASSWORD:-app}
+      DEBEZIUM_SOURCE_DATABASE_DBNAME: ${DEBEZIUM_SOURCE_DATABASE_DBNAME:-app}
+      DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST: ${DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST:-public.outbox_events}
+      DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST: ${DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST:-public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./docker/debezium/application.properties:/debezium/conf/application.properties:ro
+      - debezium-data:/debezium/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/q/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
+  debezium-data:
   postgres-data:
   mysql-data:
   redis-data:

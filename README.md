@@ -235,15 +235,26 @@ npm run migration:generate -- src/database/migrations/AddOrders
 
 ## RabbitMQ 消费示例
 
-`UsersService.create()` 创建用户后会发布 `user.created` 事件。`RabbitmqConsumer` 会消费 `RABBITMQ_QUEUE`，根据 `routingKey` 分发到对应 handler：
+当前项目的消息链路已经切到 `transactional outbox + CDC`。`UsersService.create()` 会在同一个数据库事务里写入 `users` 和 `outbox_events`，Debezium 监听数据库 binlog/WAL 后，再把 outbox 事件投递到 RabbitMQ。应用内的 `RabbitmqConsumer` 最终仍然从 `RABBITMQ_QUEUE` 消费，并按 `routingKey` 分发到 handler：
 
 ```text
 src/queue/rabbitmq.consumer.ts
 src/queue/handlers/user-created.handler.ts
 src/queue/events/user-created.event.ts
+src/queue/outbox-event.entity.ts
 ```
 
-消费失败时消息会 `nack` 且不重新入队，并进入默认死信队列：
+默认拓扑如下：
+
+```text
+PostgreSQL/MySQL outbox_events
+  -> Debezium Outbox Event Router
+  -> RabbitMQ exchange: app.events (topic)
+  -> queue: app.events
+  -> dead-letter queue: app.events.dlq
+```
+
+消费者失败时消息会 `nack` 且不重新入队，并进入默认死信队列：
 
 ```text
 ${RABBITMQ_QUEUE}.dlq
@@ -254,3 +265,150 @@ ${RABBITMQ_QUEUE}.dlq
 ```env
 RABBITMQ_CONSUMER_ENABLED=false
 ```
+
+## Debezium CDC
+
+项目内置了一套 `Debezium Server -> RabbitMQ` 的落地配置，默认针对 PostgreSQL：
+
+```text
+docker/debezium/application.properties
+docker/rabbitmq/definitions.json
+docker/rabbitmq/rabbitmq.conf
+docker-compose.yml
+docker-compose.dev.yml
+```
+
+### Outbox 约定
+
+Debezium 的 Outbox Event Router 已按当前 `outbox_events` 表结构做了映射：
+
+```text
+id           -> 事件 ID
+aggregateId  -> 消息 key
+routingKey   -> RabbitMQ routing key
+payload      -> 消息体
+createdAt    -> publishedAt
+tenantId     -> 额外放入 envelope
+aggregateType -> 额外放入 envelope
+```
+
+因此 `UsersService.create()` 写出的 outbox 记录会被 Debezium 路由成类似下面的 RabbitMQ 消息：
+
+```json
+{
+  "userId": "uuid",
+  "tenantId": "tenant-id",
+  "email": "john@example.com",
+  "occurredAt": "2026-06-02T00:00:00.000Z",
+  "aggregateType": "user",
+  "aggregateId": "uuid",
+  "publishedAt": "2026-06-02T00:00:00.000Z"
+}
+```
+
+RabbitMQ routing key 会使用 outbox 表中的 `routingKey`，例如 `user.created`。
+
+### 开发环境启动
+
+先准备环境变量：
+
+```bash
+cp .env.example .env
+```
+
+然后确保以下配置启用：
+
+```env
+DB_TYPE=postgres
+DB_SYNCHRONIZE=false
+RABBITMQ_EXCHANGE=app.events
+RABBITMQ_EXCHANGE_TYPE=topic
+RABBITMQ_BINDING_KEY=#
+RABBITMQ_QUEUE=app.events
+```
+
+启动开发依赖和 Debezium：
+
+```bash
+docker compose -f docker-compose.dev.yml --profile cdc up -d postgres redis rabbitmq debezium
+docker compose -f docker-compose.dev.yml run --rm migrate
+npm run start:dev
+```
+
+如果要一把启动完整开发环境：
+
+```bash
+docker compose -f docker-compose.dev.yml --profile cdc up --build
+```
+
+### 生产 Compose
+
+生产模式也内置了 CDC profile：
+
+```bash
+docker compose --profile cdc up --build -d
+```
+
+### PostgreSQL 要求
+
+PostgreSQL CDC 依赖逻辑复制。Compose 已自动附带：
+
+```text
+wal_level=logical
+max_wal_senders=10
+max_replication_slots=10
+```
+
+Debezium 默认配置：
+
+```env
+DEBEZIUM_SOURCE_CONNECTOR_CLASS=io.debezium.connector.postgresql.PostgresConnector
+DEBEZIUM_SOURCE_PLUGIN_NAME=pgoutput
+DEBEZIUM_SOURCE_SLOT_NAME=nestjs_outbox
+DEBEZIUM_SOURCE_PUBLICATION_NAME=nestjs_outbox_pub
+DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST=public.outbox_events
+```
+
+### MySQL 要求
+
+如果切换到 MySQL，需要使用 binlog，并把 Debezium connector 切到 MySQL：
+
+```env
+DB_TYPE=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DEBEZIUM_SOURCE_CONNECTOR_CLASS=io.debezium.connector.mysql.MySqlConnector
+DEBEZIUM_SOURCE_DATABASE_HOST=mysql
+DEBEZIUM_SOURCE_DATABASE_PORT=3306
+DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST=app.outbox_events
+```
+
+Compose 已为 MySQL 容器打开：
+
+```text
+log-bin=mysql-bin
+binlog-format=ROW
+binlog-row-image=FULL
+```
+
+启动示例：
+
+```bash
+docker compose -f docker-compose.dev.yml --profile mysql --profile cdc up -d mysql redis rabbitmq debezium
+```
+
+### 验证 CDC 是否生效
+
+1. 先启动 API、数据库、RabbitMQ、Debezium
+2. 调用创建用户接口
+3. 确认 `outbox_events` 表新增了一条记录
+4. 打开 RabbitMQ 管理台 [http://localhost:15672](http://localhost:15672)
+5. 查看 `app.events` 队列消息增长或被消费者消费
+6. 查看 Debezium 健康检查 [http://localhost:8080/q/health](http://localhost:8080/q/health)
+
+### 运行建议
+
+- 生产环境建议 `DB_SYNCHRONIZE=false`，统一走 migration
+- Outbox 和 CDC 语义通常是 at-least-once，下游消费者应保持幂等
+- 如果后续需要按事件类型拆分队列，可以新增 RabbitMQ binding，例如 `user.*`
+- 如果要把 Debezium 发出的 routing key 精细路由到多队列，建议为每个消费组单独建队列并绑定 `app.events` topic exchange
