@@ -30,6 +30,7 @@ export const envValidationSchema = Joi.object({
   RABBITMQ_MAX_RETRIES: Joi.number().integer().positive().max(2).default(2),
   RABBITMQ_QUEUE: Joi.string().required(),
   RABBITMQ_CONSUMER_ENABLED: Joi.boolean().default(true),
+  RABBITMQ_DLQ_CONSUMER_ENABLED: Joi.boolean().default(true),
   RABBITMQ_PREFETCH: Joi.number().integer().positive().default(10),
   SWAGGER_ENABLED: Joi.boolean().default(true),
   SWAGGER_PATH: Joi.string().default('docs'),

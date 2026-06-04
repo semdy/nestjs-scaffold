@@ -17,7 +17,7 @@ export type QueueHandler<T extends object = Record<string, unknown>> = (
 @Injectable()
 export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(RabbitmqService.name);
-  public connection?: ChannelModel;
+  private connection?: ChannelModel;
   private channel?: Channel;
   private readonly queue: string;
   private readonly exchange?: string;
@@ -67,6 +67,11 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
         this.exchange ? `, exchange=${this.exchange}, bindingKey=${this.bindingKey}` : ''
       }`,
     );
+  }
+
+  async createChannel(): Promise<Channel> {
+    await this.connect();
+    return this.connection!.createChannel();
   }
 
   async publish<T extends object>(routingKey: string, payload: T): Promise<boolean> {

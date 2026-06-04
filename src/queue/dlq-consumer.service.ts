@@ -25,9 +25,7 @@ export class DlqConsumerService implements OnApplicationBootstrap {
       return;
     }
     // 复用 RabbitmqService 的连接，创建独立 channel 避免互相影响
-    await this.rabbitmqService.connect();
-    this.channel = await this.rabbitmqService.connection?.createChannel();
-    if (!this.channel) return;
+    this.channel = await this.rabbitmqService.createChannel();
     await this.channel.assertQueue(this.dlqQueue, { durable: true });
     await this.channel.prefetch(1);
 
