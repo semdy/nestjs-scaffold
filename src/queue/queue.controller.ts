@@ -1,14 +1,11 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
 import { DlqConsumerService } from './dlq-consumer.service';
 import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('adminQueue')
 @ApiBearerAuth()
 @Controller('admin/queue')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
 export class QueueAdminController {
   constructor(private readonly dlqConsumer: DlqConsumerService) {}
