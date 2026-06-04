@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { USER_CREATED_ROUTING_KEY, UserCreatedEvent } from './events/user-created.event';
 import { UserCreatedHandler } from './handlers/user-created.handler';
 import { QueueEnvelope, RabbitmqService } from './rabbitmq.service';
+import { IdempotencyService } from './idempotency.guard';
 
 @Injectable()
 export class RabbitmqConsumer implements OnApplicationBootstrap {
@@ -12,6 +13,7 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
     private readonly configService: ConfigService,
     private readonly rabbitmqService: RabbitmqService,
     private readonly userCreatedHandler: UserCreatedHandler,
+    private readonly idempotencyService: IdempotencyService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -24,6 +26,14 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
   }
 
   private async dispatch(message: QueueEnvelope): Promise<void> {
+    // 去重检查：如果已处理过，直接 ack
+    if (await this.idempotencyService.isDuplicate(message.eventId, message.routingKey)) {
+      this.logger.warn(
+        `Duplicate event skipped: eventId=${message.eventId}, routingKey=${message.routingKey}`,
+      );
+      return;
+    }
+
     switch (message.routingKey) {
       case USER_CREATED_ROUTING_KEY:
         await this.userCreatedHandler.handle({

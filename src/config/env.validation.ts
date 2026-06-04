@@ -27,6 +27,7 @@ export const envValidationSchema = Joi.object({
   RABBITMQ_EXCHANGE: Joi.string().allow('').default('app.events'),
   RABBITMQ_EXCHANGE_TYPE: Joi.string().valid('direct', 'topic', 'fanout', 'headers').default('topic'),
   RABBITMQ_BINDING_KEY: Joi.string().allow('').default('#'),
+  RABBITMQ_MAX_RETRIES: Joi.number().integer().positive().max(2).default(2),
   RABBITMQ_QUEUE: Joi.string().required(),
   RABBITMQ_CONSUMER_ENABLED: Joi.boolean().default(true),
   RABBITMQ_PREFETCH: Joi.number().integer().positive().default(10),
@@ -38,4 +39,6 @@ export const envValidationSchema = Joi.object({
   SEED_ADMIN_ENABLED: Joi.boolean().default(false),
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).optional(),
+  OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72),
+  OUTBOX_CLEANUP_BATCH_SIZE: Joi.number().integer().min(100).default(1000)
 });

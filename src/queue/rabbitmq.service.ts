@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
 
 export interface QueueEnvelope<T extends object = Record<string, unknown>> {
+  eventId: string; // 来自 outbox event 的 id
   routingKey: string;
   payload: T;
   publishedAt: string;
@@ -16,13 +17,14 @@ export type QueueHandler<T extends object = Record<string, unknown>> = (
 @Injectable()
 export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(RabbitmqService.name);
-  private connection?: ChannelModel;
+  public connection?: ChannelModel;
   private channel?: Channel;
   private readonly queue: string;
   private readonly exchange?: string;
   private readonly exchangeType: 'direct' | 'topic' | 'fanout' | 'headers';
   private readonly bindingKey: string;
   private readonly deadLetterQueue: string;
+  private readonly maxRetries: number;
 
   constructor(private readonly configService: ConfigService) {
     this.queue = this.configService.getOrThrow<string>('RABBITMQ_QUEUE');
@@ -33,6 +35,7 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     );
     this.bindingKey = this.configService.get<string>('RABBITMQ_BINDING_KEY', '#');
     this.deadLetterQueue = `${this.queue}.dlq`;
+    this.maxRetries = this.configService.get<number>('RABBITMQ_MAX_RETRIES', 2);
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -102,11 +105,31 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       await handler(message, rawMessage);
       this.channel!.ack(rawMessage);
     } catch (error) {
-      this.logger.error(
-        `RabbitMQ message failed, queue=${this.queue}`,
-        error instanceof Error ? error.stack : String(error),
-      );
-      this.channel!.nack(rawMessage, false, false);
+      const retryCount = this.getRetryCount(rawMessage);
+      const routingKey = rawMessage.fields.routingKey;
+
+      if (retryCount < this.maxRetries) {
+        // 投递到重试队列，消息到期后自动回到主队列
+        const retryQueue = `${this.queue}.retry.${retryCount + 1}`;
+        this.logger.warn(
+          `Retrying message (attempt=${retryCount + 1}/${this.maxRetries}), ` +
+            `queue=${this.queue}, routingKey=${routingKey}`,
+        );
+        this.channel!.ack(rawMessage); // 先确认原消息
+        this.channel!.sendToQueue(retryQueue, rawMessage.content, {
+          persistent: true,
+          contentType: 'application/json',
+          headers: { 'x-retry-count': retryCount + 1 },
+        });
+      } else {
+        // 超过最大重试次数，nack 进 DLQ
+        this.logger.error(
+          `Message exceeded max retries (${this.maxRetries}), sending to DLQ, ` +
+            `queue=${this.queue}, routingKey=${routingKey}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        this.channel!.nack(rawMessage, false, false);
+      }
     }
   }
 
@@ -124,8 +147,19 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       throw new Error('Queue message is missing routingKey');
     }
 
+    //优先从 AMQP messageId 取，其次从 body 的 id/eventId 字段取
+    const eventId =
+      (rawMessage.properties.messageId as string) ||
+      (typeof parsed.id === 'string' ? parsed.id : '') ||
+      (typeof parsed.eventId === 'string' ? parsed.eventId : '');
+
+    if (!eventId) {
+      throw new Error('Queue message is missing eventId');
+    }
+
     if (parsed.payload && typeof parsed.payload === 'object') {
       return {
+        eventId,
         routingKey,
         payload: parsed.payload as Record<string, unknown>,
         publishedAt: this.resolvePublishedAt(parsed),
@@ -134,6 +168,7 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
     if (typeof parsed === 'object' && parsed !== null) {
       return {
+        eventId,
         routingKey,
         payload: parsed,
         publishedAt: this.resolvePublishedAt(parsed),
@@ -151,6 +186,10 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       return parsed.createdAt;
     }
     return new Date().toISOString();
+  }
+
+  private getRetryCount(rawMessage: ConsumeMessage): number {
+    return (rawMessage.properties.headers?.['x-retry-count'] as number) ?? 0;
   }
 
   async onApplicationShutdown(): Promise<void> {

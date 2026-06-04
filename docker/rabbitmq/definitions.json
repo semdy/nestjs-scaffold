@@ -16,6 +16,28 @@
       }
     },
     {
+      "name": "app.events.retry.1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "app.events",
+        "x-dead-letter-routing-key": "user.created"
+      }
+    },
+    {
+      "name": "app.events.retry.2",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 30000,
+        "x-dead-letter-exchange": "app.events",
+        "x-dead-letter-routing-key": "user.created"
+      }
+    },
+    {
       "name": "app.events.dlq",
       "vhost": "/",
       "durable": true,
