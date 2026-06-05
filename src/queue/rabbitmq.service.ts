@@ -120,12 +120,20 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
           `Retrying message (attempt=${retryCount + 1}/${this.maxRetries}), ` +
             `queue=${this.queue}, routingKey=${routingKey}`,
         );
-        this.channel!.ack(rawMessage); // 先确认原消息
-        this.channel!.sendToQueue(retryQueue, rawMessage.content, {
+        // 先发到 retry 队列
+        const sent = this.channel!.sendToQueue(retryQueue, rawMessage.content, {
           persistent: true,
           contentType: 'application/json',
           headers: { 'x-retry-count': retryCount + 1 },
         });
+        if (sent) {
+          this.channel!.ack(rawMessage); // 发送成功才 ack
+        } else {
+          // sendToQueue 失败，消息留在主队列，下次重投
+          // 或直接进 DLQ
+          this.channel!.nack(rawMessage, false, false);
+          this.logger.error(`Failed to send to retry queue ${retryQueue}, message going to DLQ`);
+        }
       } else {
         // 超过最大重试次数，nack 进 DLQ
         this.logger.error(

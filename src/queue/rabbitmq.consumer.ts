@@ -1,15 +1,20 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { USER_CREATED_ROUTING_KEY, UserCreatedEvent } from './events/user-created.event';
 import { UserCreatedHandler } from './handlers/user-created.handler';
 import { QueueEnvelope, RabbitmqService } from './rabbitmq.service';
 import { IdempotencyService } from './idempotency.guard';
+import { ProcessedEvent } from './processed-events.entity';
 
 @Injectable()
 export class RabbitmqConsumer implements OnApplicationBootstrap {
   private readonly logger = new Logger(RabbitmqConsumer.name);
 
   constructor(
+    @InjectRepository(ProcessedEvent)
+    private readonly processedEventRepo: Repository<ProcessedEvent>,
     private readonly configService: ConfigService,
     private readonly rabbitmqService: RabbitmqService,
     private readonly userCreatedHandler: UserCreatedHandler,
@@ -26,11 +31,25 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
   }
 
   private async dispatch(message: QueueEnvelope): Promise<void> {
-    // 去重检查：如果已处理过，直接 ack
+    // 第一道：Redis 快速去重
     if (await this.idempotencyService.isDuplicate(message.eventId, message.routingKey)) {
       this.logger.warn(
         `Duplicate event skipped: eventId=${message.eventId}, routingKey=${message.routingKey}`,
       );
+      return;
+    }
+
+    // 第二道：事务内数据库去重，尝试插入去重记录，eventId 是主键，重复插入会抛唯一约束异常
+    try {
+      await this.processedEventRepo.insert({
+        eventId: message.eventId,
+        routingKey: message.routingKey,
+        processedAt: new Date(),
+        expiresAt: new Date(Date.now() + 7 * 86400_000),
+      });
+    } catch (e: any) {
+      // 唯一约束冲突 = 已处理过，安全跳过
+      this.logger.error(`DB dedup error: ${e}, event ${message.eventId} already processed`);
       return;
     }
 

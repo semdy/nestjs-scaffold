@@ -10,11 +10,16 @@ import { OutboxCleanupService } from './outbox-cleanup.service';
 import { QueueAdminController } from './queue.controller';
 import { RedisService } from '../redis/redis.service';
 import { OutboxEvent } from './outbox-event.entity';
+import { ProcessedEvent } from './processed-events.entity';
 import { IdempotencyService } from './idempotency.guard';
 
 @Global()
 @Module({
-  imports: [ConfigModule, ScheduleModule.forRoot(), TypeOrmModule.forFeature([OutboxEvent])],
+  imports: [
+    ConfigModule,
+    ScheduleModule.forRoot(),
+    TypeOrmModule.forFeature([OutboxEvent, ProcessedEvent]),
+  ],
   controllers: [QueueAdminController],
   providers: [
     RedisService,
