@@ -20,6 +20,16 @@ services:
       - postgres
       - redis
       - rabbitmq
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://localhost:3000/api/health'').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   migrate:
     build:
@@ -35,7 +45,8 @@ services:
       - .:/app
       - /app/node_modules
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:17-alpine
@@ -57,6 +68,12 @@ services:
       - '5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-app} -d ${DB_DATABASE:-app}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   mysql:
     image: mysql:9
@@ -79,6 +96,12 @@ services:
       - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   redis:
     image: redis:8-alpine
@@ -86,6 +109,11 @@ services:
       - '6379:6379'
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -99,6 +127,11 @@ services:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'check_port_connectivity']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   debezium:
     image: quay.io/debezium/server:3.5.2.Final
@@ -117,13 +150,22 @@ services:
       DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST: ${DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST:-public.outbox_events}
       DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST: ${DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST:-public}
     depends_on:
-      - postgres
-      - rabbitmq
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     volumes:
       - ./docker/debezium/application.properties:/debezium/config/application.properties:ro
       - debezium-data:/debezium/data
     ports:
       - '8080:8080'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/q/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   debezium-data:

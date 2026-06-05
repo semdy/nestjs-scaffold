@@ -18,6 +18,16 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://localhost:3000/api/health'').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   migrate:
     build: .
@@ -56,6 +66,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   mysql:
     image: mysql:9
@@ -78,6 +89,12 @@ services:
       - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   redis:
     image: redis:8-alpine
@@ -127,6 +144,8 @@ services:
       DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST: ${DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST:-public.outbox_events}
       DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST: ${DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST:-public}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       rabbitmq:
