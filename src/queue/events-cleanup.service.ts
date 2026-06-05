@@ -7,8 +7,8 @@ import { ProcessedEvent } from './processed-event.entity';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class OutboxCleanupService {
-  private readonly logger = new Logger(OutboxCleanupService.name);
+export class EventsCleanupService {
+  private readonly logger = new Logger(EventsCleanupService.name);
   private readonly retentionHours: number;
 
   constructor(

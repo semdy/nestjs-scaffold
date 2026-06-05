@@ -9,7 +9,7 @@ services:
       REDIS_HOST: redis
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - '${APP_PORT:-3000}:3000'
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -33,32 +33,41 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    command: ["postgres", "-c", "wal_level=logical", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
+    command:
+      [
+        'postgres',
+        '-c',
+        'wal_level=logical',
+        '-c',
+        'max_wal_senders=10',
+        '-c',
+        'max_replication_slots=10',
+      ]
     environment:
       POSTGRES_USER: ${DB_USERNAME:-app}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-app}
       POSTGRES_DB: ${DB_DATABASE:-app}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-app} -d ${DB_DATABASE:-app}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-app} -d ${DB_DATABASE:-app}']
       interval: 10s
       timeout: 5s
       retries: 5
 
   mysql:
     image: mysql:9
-    profiles: ["mysql"]
+    profiles: ['mysql']
     command:
       [
-        "--server-id=223344",
-        "--log-bin=mysql-bin",
-        "--binlog-format=ROW",
-        "--binlog-row-image=FULL",
-        "--gtid-mode=ON",
-        "--enforce-gtid-consistency=ON",
+        '--server-id=223344',
+        '--log-bin=mysql-bin',
+        '--binlog-format=ROW',
+        '--binlog-row-image=FULL',
+        '--gtid-mode=ON',
+        '--enforce-gtid-consistency=ON',
       ]
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
@@ -66,7 +75,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-app}
       MYSQL_DATABASE: ${DB_DATABASE:-app}
     ports:
-      - "3306:3306"
+      - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
 
@@ -74,11 +83,11 @@ services:
     image: redis:8-alpine
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -89,21 +98,21 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-app}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-app}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - '5672:5672'
+      - '15672:15672'
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      test: ['CMD', 'rabbitmq-diagnostics', 'check_port_connectivity']
       interval: 10s
       timeout: 5s
       retries: 5
 
   debezium:
-    image: debezium/server:3.3
-    profiles: ["cdc"]
+    image: quay.io/debezium/server:3.5.2.Final
+    profiles: ['cdc']
     env_file:
       - path: .env
         required: false
@@ -123,11 +132,11 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ./docker/debezium/application.properties:/debezium/conf/application.properties:ro
+      - ./docker/debezium/application.properties:/debezium/config/application.properties:ro
       - debezium-data:/debezium/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/q/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/q/health || exit 1']
       interval: 10s
       timeout: 5s
       retries: 10
