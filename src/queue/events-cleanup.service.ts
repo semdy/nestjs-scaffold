@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 export class OutboxCleanupService {
   private readonly logger = new Logger(OutboxCleanupService.name);
   private readonly retentionHours: number;
-  private readonly batchSize: number;
 
   constructor(
     @InjectRepository(OutboxEvent)
@@ -21,7 +20,6 @@ export class OutboxCleanupService {
   ) {
     // 保留最近 N 小时的事件，给 Debezium 足够的消费窗口
     this.retentionHours = this.configService.get<number>('OUTBOX_RETENTION_HOURS', 72);
-    this.batchSize = this.configService.get<number>('OUTBOX_CLEANUP_BATCH_SIZE', 1000);
   }
 
   @Cron('0 */30 * * * *') // 每30分钟执行一次
@@ -32,47 +30,32 @@ export class OutboxCleanupService {
 
   async cleanOutboxEvents(): Promise<void> {
     const cutoff = new Date(Date.now() - this.retentionHours * 3600_000);
-    let totalDeleted = 0;
 
     // 分批删除，避免长事务锁表
-    while (true) {
-      const result = await this.outboxRepo
-        .createQueryBuilder()
-        .delete()
-        .from(OutboxEvent)
-        .where('createdAt < :cutoff', { cutoff })
-        // .limit(this.batchSize)
-        .execute();
+    const result = await this.outboxRepo
+      .createQueryBuilder()
+      .delete()
+      .from(OutboxEvent)
+      .where('createdAt < :cutoff', { cutoff })
+      .execute();
 
-      totalDeleted += result.affected ?? 0;
-
-      if ((result.affected ?? 0) < this.batchSize) {
-        break;
-      }
-    }
-
-    if (totalDeleted > 0) {
-      this.logger.log(`Cleaned ${totalDeleted} outbox events older than ${cutoff.toISOString()}`);
+    if ((result.affected ?? 0) > 0) {
+      this.logger.log(
+        `Cleaned ${result.affected} outbox events older than ${cutoff.toISOString()}`,
+      );
     }
   }
 
   async cleanProcessedEvents(): Promise<void> {
-    let totalDeleted = 0;
-    while (true) {
-      const result = await this.processedEventRepo
-        .createQueryBuilder()
-        .delete()
-        .from('processed_events')
-        .where('expiresAt < :now', { now: new Date() })
-        // .limit(this.batchSize)
-        .execute();
+    const result = await this.processedEventRepo
+      .createQueryBuilder()
+      .delete()
+      .from(ProcessedEvent)
+      .where('expiresAt < :now', { now: new Date() })
+      .execute();
 
-      totalDeleted += result.affected ?? 0;
-      if ((result.affected ?? 0) < this.batchSize) break;
-    }
-
-    if (totalDeleted > 0) {
-      this.logger.log(`Cleaned ${totalDeleted} expired processed_events`);
+    if ((result.affected ?? 0) > 0) {
+      this.logger.log(`Cleaned ${result.affected} expired processed_events`);
     }
   }
 }

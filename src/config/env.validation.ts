@@ -40,6 +40,5 @@ export const envValidationSchema = Joi.object({
   SEED_ADMIN_ENABLED: Joi.boolean().default(false),
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).optional(),
-  OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72),
-  OUTBOX_CLEANUP_BATCH_SIZE: Joi.number().integer().min(100).default(1000)
+  OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72)
 });
