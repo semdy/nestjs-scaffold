@@ -27,7 +27,7 @@ export const envValidationSchema = Joi.object({
   RABBITMQ_EXCHANGE: Joi.string().allow('').default('app.events'),
   RABBITMQ_EXCHANGE_TYPE: Joi.string().valid('direct', 'topic', 'fanout', 'headers').default('topic'),
   RABBITMQ_BINDING_KEY: Joi.string().allow('').default('#'),
-  RABBITMQ_MAX_RETRIES: Joi.number().integer().positive().max(2).default(2),
+  RABBITMQ_MAX_RETRIES: Joi.number().integer().max(2).default(2),
   RABBITMQ_QUEUE: Joi.string().required(),
   RABBITMQ_CONSUMER_ENABLED: Joi.boolean().default(true),
   RABBITMQ_DLQ_CONSUMER_ENABLED: Joi.boolean().default(true),

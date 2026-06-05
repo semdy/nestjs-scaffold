@@ -14,18 +14,14 @@ import { IdempotencyService } from './idempotency.guard';
 
 @Global()
 @Module({
-  imports: [
-    ConfigModule,
-    RedisService,
-    ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([OutboxEvent]),
-  ],
+  imports: [ConfigModule, ScheduleModule.forRoot(), TypeOrmModule.forFeature([OutboxEvent])],
   controllers: [QueueAdminController],
   providers: [
-    IdempotencyService,
+    RedisService,
     RabbitmqService,
     RabbitmqConsumer,
     UserCreatedHandler,
+    IdempotencyService,
     DlqConsumerService,
     OutboxCleanupService,
   ],

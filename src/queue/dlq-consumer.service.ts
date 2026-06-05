@@ -1,15 +1,16 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Channel, ConsumeMessage } from 'amqplib';
+import { Cron } from '@nestjs/schedule';
+import { Channel } from 'amqplib';
 import { RabbitmqService } from './rabbitmq.service';
 
 @Injectable()
 export class DlqConsumerService implements OnApplicationBootstrap {
   private readonly logger = new Logger(DlqConsumerService.name);
+  private channel?: Channel;
   private readonly dlqQueue: string;
   private readonly mainQueue: string;
   private readonly exchange?: string;
-  private channel?: Channel;
 
   constructor(
     private readonly configService: ConfigService,
@@ -24,48 +25,56 @@ export class DlqConsumerService implements OnApplicationBootstrap {
     if (!this.configService.get<boolean>('RABBITMQ_DLQ_CONSUMER_ENABLED', true)) {
       return;
     }
-    // 复用 RabbitmqService 的连接，创建独立 channel 避免互相影响
     this.channel = await this.rabbitmqService.createChannel();
-    await this.channel.assertQueue(this.dlqQueue, { durable: true });
-    await this.channel.prefetch(1);
-
-    await this.channel.consume(this.dlqQueue, (msg) => {
-      if (!msg) return;
-      this.handleDlqMessage(msg);
-    });
-
-    this.logger.log(`DLQ consumer started on ${this.dlqQueue}`);
+    await this.channel.checkQueue(this.dlqQueue);
+    this.logger.log(`DLQ monitor initialized on ${this.dlqQueue}`);
   }
 
-  private handleDlqMessage(msg: ConsumeMessage): void {
-    const deathCount = this.getDeathCount(msg);
-
-    this.logger.error(
-      `DLQ message: routingKey=${msg.fields.routingKey}, ` +
-        `deathCount=${deathCount}, body=${msg.content.toString().slice(0, 200)}`,
-    );
-
-    // 死信消息只 ack 掉并告警，不做自动重投
-    // 生产环境应接入告警系统（Slack / PagerDuty 等）
-    this.channel!.ack(msg);
+  /** 定时检查 DLQ 深度，有积压就告警 */
+  @Cron('0 */1 * * * *') // 每分钟
+  async checkDlqDepth(): Promise<void> {
+    const info = await this.channel!.checkQueue(this.dlqQueue);
+    if (info.messageCount > 0) {
+      this.logger.warn(`DLQ has ${info.messageCount} messages pending in ${this.dlqQueue}`);
+      // 这里可以接入 Slack / PagerDuty 告警
+    }
   }
 
-  /** 手动重投接口：运维确认问题修复后，通过 API 调用 */
-  async republish(msgContent: Buffer, routingKey: string): Promise<void> {
-    const options = { persistent: true, contentType: 'application/json' };
+  /** 重投：从 DLQ 取一条消息，转发到主队列，然后 ack DLQ 消息 */
+  async republishOne(): Promise<{ republished: boolean; routingKey?: string }> {
+    const msg = await this.channel!.get(this.dlqQueue, { noAck: false });
+    if (!msg) {
+      return { republished: false };
+    }
+
+    const routingKey = msg.fields.routingKey;
+    const options = {
+      persistent: true,
+      contentType: 'application/json',
+      headers: { 'x-republish': true },
+    };
+
     if (this.exchange) {
-      this.channel!.publish(this.exchange, routingKey, msgContent, options);
+      this.channel!.publish(this.exchange, routingKey, msg.content, options);
     } else {
-      this.channel!.sendToQueue(this.mainQueue, msgContent, options);
+      this.channel!.sendToQueue(this.mainQueue, msg.content, options);
     }
-    this.logger.warn(`Republished DLQ message to main queue, routingKey=${routingKey}`);
+
+    // 转发成功后，从 DLQ 中移除
+    this.channel!.ack(msg);
+    this.logger.log(`Republished DLQ message to main queue, routingKey=${routingKey}`);
+
+    return { republished: true, routingKey };
   }
 
-  private getDeathCount(msg: ConsumeMessage): number {
-    const death = msg.properties.headers?.['x-death'];
-    if (Array.isArray(death) && death.length > 0) {
-      return death[0].count ?? 1;
+  /** 批量重投：DLQ 中所有消息 */
+  async republishAll(): Promise<number> {
+    let count = 0;
+    while (true) {
+      const { republished } = await this.republishOne();
+      if (!republished) break;
+      count++;
     }
-    return 1;
+    return count;
   }
 }
