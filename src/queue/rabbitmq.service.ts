@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
+import { SkipMessageError } from '../common/exceptions/errors.definitions';
 
 export interface QueueEnvelope<T extends object = Record<string, unknown>> {
   eventId: string; // 来自 outbox event 的 id
@@ -110,6 +111,12 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       await handler(message, rawMessage);
       this.channel!.ack(rawMessage);
     } catch (error) {
+      if (error instanceof SkipMessageError) {
+        // 去重拦截，安全跳过，ack 掉消息
+        this.channel!.ack(rawMessage);
+        return;
+      }
+
       const retryCount = this.getRetryCount(rawMessage);
       const routingKey = rawMessage.fields.routingKey;
 

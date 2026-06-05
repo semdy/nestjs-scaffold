@@ -6,11 +6,11 @@ import { UserCreatedHandler } from './handlers/user-created.handler';
 import { RabbitmqConsumer } from './rabbitmq.consumer';
 import { RabbitmqService } from './rabbitmq.service';
 import { DlqConsumerService } from './dlq-consumer.service';
-import { OutboxCleanupService } from './outbox-cleanup.service';
+import { EventsCleanupService } from './events-cleanup.service';
 import { QueueAdminController } from './queue.controller';
 import { RedisService } from '../redis/redis.service';
 import { OutboxEvent } from './outbox-event.entity';
-import { ProcessedEvent } from './processed-events.entity';
+import { ProcessedEvent } from './processed-event.entity';
 import { IdempotencyService } from './idempotency.guard';
 
 @Global()
@@ -28,7 +28,7 @@ import { IdempotencyService } from './idempotency.guard';
     UserCreatedHandler,
     IdempotencyService,
     DlqConsumerService,
-    OutboxCleanupService,
+    EventsCleanupService,
   ],
   exports: [RabbitmqService],
 })

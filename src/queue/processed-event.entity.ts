@@ -13,5 +13,5 @@ export class ProcessedEvent {
   processedAt: Date;
 
   @Column({ type: 'timestamptz' })
-  expiresAt: Date; // 过期后可由 OutboxCleanupService 一起清理
+  expiresAt: Date; // 过期后可由 EventsCleanupService 一起清理
 }

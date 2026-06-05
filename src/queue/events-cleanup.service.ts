@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OutboxEvent } from './outbox-event.entity';
+import { ProcessedEvent } from './processed-event.entity';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -14,6 +15,8 @@ export class OutboxCleanupService {
   constructor(
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
+    @InjectRepository(ProcessedEvent)
+    private readonly processedEventRepo: Repository<ProcessedEvent>,
     private readonly configService: ConfigService,
   ) {
     // 保留最近 N 小时的事件，给 Debezium 足够的消费窗口
@@ -22,7 +25,12 @@ export class OutboxCleanupService {
   }
 
   @Cron('0 */30 * * * *') // 每30分钟执行一次
-  async cleanExpiredEvents(): Promise<void> {
+  cleanExpiredEvents() {
+    void this.cleanOutboxEvents();
+    void this.cleanProcessedEvents();
+  }
+
+  async cleanOutboxEvents(): Promise<void> {
     const cutoff = new Date(Date.now() - this.retentionHours * 3600_000);
     let totalDeleted = 0;
 
@@ -33,7 +41,7 @@ export class OutboxCleanupService {
         .delete()
         .from(OutboxEvent)
         .where('createdAt < :cutoff', { cutoff })
-        .limit(this.batchSize)
+        // .limit(this.batchSize)
         .execute();
 
       totalDeleted += result.affected ?? 0;
@@ -45,6 +53,26 @@ export class OutboxCleanupService {
 
     if (totalDeleted > 0) {
       this.logger.log(`Cleaned ${totalDeleted} outbox events older than ${cutoff.toISOString()}`);
+    }
+  }
+
+  async cleanProcessedEvents(): Promise<void> {
+    let totalDeleted = 0;
+    while (true) {
+      const result = await this.processedEventRepo
+        .createQueryBuilder()
+        .delete()
+        .from('processed_events')
+        .where('expiresAt < :now', { now: new Date() })
+        // .limit(this.batchSize)
+        .execute();
+
+      totalDeleted += result.affected ?? 0;
+      if ((result.affected ?? 0) < this.batchSize) break;
+    }
+
+    if (totalDeleted > 0) {
+      this.logger.log(`Cleaned ${totalDeleted} expired processed_events`);
     }
   }
 }

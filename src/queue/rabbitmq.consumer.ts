@@ -6,7 +6,8 @@ import { USER_CREATED_ROUTING_KEY, UserCreatedEvent } from './events/user-create
 import { UserCreatedHandler } from './handlers/user-created.handler';
 import { QueueEnvelope, RabbitmqService } from './rabbitmq.service';
 import { IdempotencyService } from './idempotency.guard';
-import { ProcessedEvent } from './processed-events.entity';
+import { ProcessedEvent } from './processed-event.entity';
+import { SkipMessageError } from '../common/exceptions/errors.definitions';
 
 @Injectable()
 export class RabbitmqConsumer implements OnApplicationBootstrap {
@@ -45,12 +46,16 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
         eventId: message.eventId,
         routingKey: message.routingKey,
         processedAt: new Date(),
-        expiresAt: new Date(Date.now() + 7 * 86400_000),
+        expiresAt: new Date(Date.now() + 7 * 86400_000), // 7天
       });
-    } catch (e: any) {
+    } catch (err: any) {
       // 唯一约束冲突 = 已处理过，安全跳过
-      this.logger.error(`DB dedup error: ${e}, event ${message.eventId} already processed`);
-      return;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (err.code === '23505') {
+        this.logger.error(`DB dedup: event ${message.eventId} already processed, skipping!`);
+        throw new SkipMessageError(); // 自定义错误，上层 catch 做 ack
+      }
+      throw err; // 其他错误正常抛，触发重试
     }
 
     switch (message.routingKey) {
