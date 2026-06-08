@@ -19,7 +19,7 @@
 ```bash
 cp .env.example .env
 npm install
-docker compose -f docker-compose.dev.yml up -d postgres redis rabbitmq
+docker compose -f docker-compose.dev.yml up -d postgres redis rabbitmq debezium
 npm run start:dev
 ```
 

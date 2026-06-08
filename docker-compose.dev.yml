@@ -35,16 +35,12 @@ services:
     build:
       context: .
       target: deps
-    command: sh docker/scripts/migrate-dev.sh
+    command: npm run migration:run
     env_file:
       - path: .env
         required: false
     environment:
       DB_HOST: ${DOCKER_DB_HOST:-postgres}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_USERNAME: ${DB_USERNAME:-app}
-      DB_PASSWORD: ${DB_PASSWORD:-app}
-      DB_DATABASE: ${DB_DATABASE:-app}
     volumes:
       - .:/app
       - /app/node_modules
