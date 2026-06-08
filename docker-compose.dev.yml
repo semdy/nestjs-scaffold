@@ -35,12 +35,16 @@ services:
     build:
       context: .
       target: deps
-    command: npm run migration:run
+    command: sh docker/scripts/migrate-dev.sh
     env_file:
       - path: .env
         required: false
     environment:
       DB_HOST: ${DOCKER_DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USERNAME: ${DB_USERNAME:-app}
+      DB_PASSWORD: ${DB_PASSWORD:-app}
+      DB_DATABASE: ${DB_DATABASE:-app}
     volumes:
       - .:/app
       - /app/node_modules
@@ -128,10 +132,11 @@ services:
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
     healthcheck:
-      test: ['CMD', 'rabbitmq-diagnostics', 'check_port_connectivity']
+      test: ['CMD-SHELL', 'nc -z localhost 5672 || exit 1']
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   debezium:
     image: quay.io/debezium/server:3.5.2.Final

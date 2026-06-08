@@ -24,6 +24,7 @@ export class EventsCleanupService {
 
   @Cron('0 */30 * * * *') // 每30分钟执行一次
   cleanExpiredEvents() {
+    this.logger.log('Cleaning expired events...');
     void this.cleanOutboxEvents();
     void this.cleanProcessedEvents();
   }
