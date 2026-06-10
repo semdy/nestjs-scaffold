@@ -15,15 +15,12 @@ export type QueueHandler<T extends object = Record<string, unknown>> = (
   rawMessage: ConsumeMessage,
 ) => Promise<void>;
 
-function getErrorMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 @Injectable()
 export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(RabbitmqService.name);
   private connection?: ChannelModel;
   private channel?: Channel;
+  private connectPromise?: Promise<void>;
   private isShuttingDown = false;
   private isReconnecting = false;
   private reconnectAttempts = 0;
@@ -58,11 +55,23 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     await this.connect();
   }
 
+  /** 建立连接（原子化：并发调用复用同一个 Promise） */
   async connect(): Promise<void> {
     if (this.channel) {
       return;
     }
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+    this.connectPromise = this.establishConnection();
+    try {
+      await this.connectPromise;
+    } finally {
+      this.connectPromise = undefined;
+    }
+  }
 
+  private async establishConnection(): Promise<void> {
     this.connection = await amqp.connect(this.configService.getOrThrow<string>('RABBITMQ_URL'));
     this.channel = await this.connection.createChannel();
 
@@ -71,11 +80,13 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       this.logger.warn('RabbitMQ connection closed unexpectedly');
       this.scheduleReconnect();
     });
+
     this.connection.on('error', (err) => {
-      this.logger.error(`RabbitMQ connection error: ${getErrorMsg(err)}`);
+      this.logger.error('RabbitMQ connection error:', err);
     });
+
     this.channel.on('error', (err) => {
-      this.logger.error(`RabbitMQ channel error: ${getErrorMsg(err)}`);
+      this.logger.error('RabbitMQ channel error:', err);
       this.scheduleReconnect();
     });
 
@@ -87,21 +98,6 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
         this.exchange ? `, exchange=${this.exchange}, bindingKey=${this.bindingKey}` : ''
       }`,
     );
-
-    if (this.consumerHandler) {
-      await this.registerConsumer(this.consumerHandler);
-    }
-
-    // 非首次连接时，通知外部服务重建资源
-    if (this.reconnectAttempts > 0) {
-      for (const cb of this.reconnectCallbacks) {
-        try {
-          await cb();
-        } catch (err) {
-          this.logger.error(`Reconnect callback failed: ${getErrorMsg(err)}`);
-        }
-      }
-    }
   }
 
   private async setupTopology(): Promise<void> {
@@ -154,13 +150,32 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
     setTimeout(() => {
       this.connect()
+        .then(() => {
+          void this.onReconnected();
+        })
         .catch((err) => {
-          this.logger.error(`RabbitMQ reconnection failed: ${getErrorMsg(err)}`);
+          this.logger.error('RabbitMQ reconnection failed:', err);
+          this.isReconnecting = false;
+          this.scheduleReconnect();
         })
         .finally(() => {
           this.isReconnecting = false;
         });
     }, delay);
+  }
+
+  /** 重连成功后：重新注册 consumer、触发外部回调 */
+  private async onReconnected(): Promise<void> {
+    if (this.consumerHandler) {
+      await this.registerConsumer(this.consumerHandler);
+    }
+    for (const cb of this.reconnectCallbacks) {
+      try {
+        await cb();
+      } catch (err) {
+        this.logger.error('Reconnect callback failed:', err);
+      }
+    }
   }
 
   async createChannel(): Promise<Channel> {
