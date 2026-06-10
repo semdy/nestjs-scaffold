@@ -15,11 +15,20 @@ export type QueueHandler<T extends object = Record<string, unknown>> = (
   rawMessage: ConsumeMessage,
 ) => Promise<void>;
 
+function getErrorMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 @Injectable()
 export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(RabbitmqService.name);
   private connection?: ChannelModel;
   private channel?: Channel;
+  private isShuttingDown = false;
+  private isReconnecting = false;
+  private reconnectAttempts = 0;
+  private readonly maxReconnectDelay = 30000;
+  private consumerHandler?: QueueHandler;
   private readonly queue: string;
   private readonly exchange?: string;
   private readonly exchangeType: 'direct' | 'topic' | 'fanout' | 'headers';
@@ -50,24 +59,70 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
     this.connection = await amqp.connect(this.configService.getOrThrow<string>('RABBITMQ_URL'));
     this.channel = await this.connection.createChannel();
-    if (this.exchange) {
-      await this.channel.assertExchange(this.exchange, this.exchangeType, { durable: true });
-    }
-    await this.channel.assertQueue(this.deadLetterQueue, { durable: true });
-    await this.channel.assertQueue(this.queue, {
-      durable: true,
-      deadLetterExchange: '',
-      deadLetterRoutingKey: this.deadLetterQueue,
+
+    this.connection.on('close', () => {
+      if (this.isShuttingDown) return;
+      this.logger.warn('RabbitMQ connection closed unexpectedly');
+      this.scheduleReconnect();
     });
-    if (this.exchange) {
-      await this.channel.bindQueue(this.queue, this.exchange, this.bindingKey);
-    }
-    await this.channel.prefetch(this.configService.get<number>('RABBITMQ_PREFETCH', 10));
+    this.connection.on('error', (err) => {
+      this.logger.error(`RabbitMQ connection error: ${getErrorMsg(err)}`);
+    });
+    this.channel.on('error', (err) => {
+      this.logger.error(`RabbitMQ channel error: ${getErrorMsg(err)}`);
+      this.scheduleReconnect();
+    });
+
+    await this.setupTopology();
+
+    this.reconnectAttempts = 0;
     this.logger.log(
       `RabbitMQ connected, queue=${this.queue}${
         this.exchange ? `, exchange=${this.exchange}, bindingKey=${this.bindingKey}` : ''
       }`,
     );
+
+    if (this.consumerHandler) {
+      await this.registerConsumer(this.consumerHandler);
+    }
+  }
+
+  private async setupTopology(): Promise<void> {
+    if (this.exchange) {
+      await this.channel!.assertExchange(this.exchange, this.exchangeType, { durable: true });
+    }
+    await this.channel!.assertQueue(this.deadLetterQueue, { durable: true });
+    await this.channel!.assertQueue(this.queue, {
+      durable: true,
+      deadLetterExchange: '',
+      deadLetterRoutingKey: this.deadLetterQueue,
+    });
+    if (this.exchange) {
+      await this.channel!.bindQueue(this.queue, this.exchange, this.bindingKey);
+    }
+    await this.channel!.prefetch(this.configService.get<number>('RABBITMQ_PREFETCH', 10));
+  }
+
+  private scheduleReconnect(): void {
+    if (this.isShuttingDown || this.isReconnecting) return;
+
+    this.isReconnecting = true;
+    this.channel = undefined;
+    this.connection = undefined;
+
+    this.reconnectAttempts++;
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
+    this.logger.log(`RabbitMQ reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+    setTimeout(() => {
+      this.connect()
+        .catch((err) => {
+          this.logger.error(`RabbitMQ reconnection failed: ${getErrorMsg(err)}`);
+        })
+        .finally(() => {
+          this.isReconnecting = false;
+        });
+    }, delay);
   }
 
   async createChannel(): Promise<Channel> {
@@ -90,6 +145,11 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
   }
 
   async consume(handler: QueueHandler): Promise<void> {
+    this.consumerHandler = handler;
+    await this.registerConsumer(handler);
+  }
+
+  private async registerConsumer(handler: QueueHandler): Promise<void> {
     await this.connect();
     await this.channel!.consume(
       this.queue,
@@ -213,6 +273,7 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
   }
 
   async onApplicationShutdown(): Promise<void> {
+    this.isShuttingDown = true;
     await this.channel?.close();
     await this.connection?.close();
   }

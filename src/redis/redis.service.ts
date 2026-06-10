@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -11,6 +11,7 @@ export interface RedisSetOptions {
 
 @Injectable()
 export class RedisService implements OnApplicationShutdown {
+  private readonly logger = new Logger(RedisService.name);
   readonly client: Redis;
 
   constructor(configService: ConfigService) {
@@ -21,7 +22,15 @@ export class RedisService implements OnApplicationShutdown {
       db: configService.get<number>('REDIS_DB', 0),
       lazyConnect: true,
       maxRetriesPerRequest: 3,
+      retryStrategy: (times) => {
+        const delay = Math.min(times * 1000, 10000);
+        this.logger.warn(`Redis reconnecting in ${delay}ms (attempt ${times})`);
+        return delay;
+      },
     });
+    this.client.on('error', (err) => this.logger.error(`Redis error: ${err.message}`));
+    this.client.on('reconnecting', () => this.logger.warn('Redis reconnecting...'));
+    this.client.on('connect', () => this.logger.log('Redis connected'));
   }
 
   async ensureConnected(): Promise<void> {
