@@ -113,12 +113,21 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     // 声明重试队列：每级递增 TTL，到期后通过死信路由回到主队列
     for (let i = 1; i <= this.maxRetries; i++) {
       const ttl = Math.pow(5, i) * 1000; // 5s, 25s, 125s, ...
-      await this.channel!.assertQueue(`${this.queue}.retry.${i}`, {
+      const retryQueueOpts: amqp.Options.AssertQueue = {
         durable: true,
-        deadLetterExchange: '',
-        deadLetterRoutingKey: this.queue,
         arguments: { 'x-message-ttl': ttl },
-      });
+      };
+      if (this.exchange) {
+        // 有 exchange 时：到期消息通过 exchange 路由回主队列
+        // 不设 deadLetterRoutingKey，RabbitMQ 保留原始 routing key，
+        // 通过 exchange 的 # binding 匹配回到主队列
+        retryQueueOpts.deadLetterExchange = this.exchange;
+      } else {
+        // 无 exchange 时：通过默认 exchange 直接投递到主队列
+        retryQueueOpts.deadLetterExchange = '';
+        retryQueueOpts.deadLetterRoutingKey = this.queue;
+      }
+      await this.channel!.assertQueue(`${this.queue}.retry.${i}`, retryQueueOpts);
     }
 
     await this.channel!.assertQueue(this.queue, {
