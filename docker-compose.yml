@@ -8,6 +8,8 @@ services:
       DB_HOST: ${DOCKER_DB_HOST:-postgres}
       REDIS_HOST: redis
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672
+    volumes:
+      - ./dist:/app/dist
     ports:
       - '${APP_PORT:-3000}:3000'
     depends_on:
