@@ -30,9 +30,7 @@ services:
       start_period: 30s
 
   migrate:
-    build:
-      context: .
-      target: runtime
+    build: .
     command: npm run migration:run:prod
     env_file:
       - path: .env
