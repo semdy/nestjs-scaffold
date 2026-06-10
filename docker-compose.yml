@@ -30,13 +30,17 @@ services:
       start_period: 30s
 
   migrate:
-    build: .
+    build:
+      context: .
+      target: runtime
     command: npm run migration:run:prod
     env_file:
       - path: .env
         required: false
     environment:
       DB_HOST: ${DOCKER_DB_HOST:-postgres}
+    volumes:
+      - ./dist:/app/dist
     depends_on:
       postgres:
         condition: service_healthy
@@ -160,6 +164,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
 
 volumes:
   debezium-data:
