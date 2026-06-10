@@ -23,10 +23,14 @@ export class EventsCleanupService {
   }
 
   @Cron('0 */30 * * * *') // 每30分钟执行一次
-  cleanExpiredEvents() {
+  async cleanExpiredEvents() {
     this.logger.log('Cleaning expired events...');
-    void this.cleanOutboxEvents();
-    void this.cleanProcessedEvents();
+    await this.cleanOutboxEvents().catch((err) =>
+      this.logger.error(`Failed to clean outbox events: ${err instanceof Error ? err.message : String(err)}`),
+    );
+    await this.cleanProcessedEvents().catch((err) =>
+      this.logger.error(`Failed to clean processed events: ${err instanceof Error ? err.message : String(err)}`),
+    );
   }
 
   async cleanOutboxEvents(): Promise<void> {

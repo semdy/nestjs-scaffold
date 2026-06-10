@@ -29,6 +29,7 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
   private reconnectAttempts = 0;
   private readonly maxReconnectDelay = 30000;
   private consumerHandler?: QueueHandler;
+  private readonly reconnectCallbacks: Array<() => Promise<void>> = [];
   private readonly queue: string;
   private readonly exchange?: string;
   private readonly exchangeType: 'direct' | 'topic' | 'fanout' | 'headers';
@@ -46,6 +47,11 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     this.bindingKey = this.configService.get<string>('RABBITMQ_BINDING_KEY', '#');
     this.deadLetterQueue = `${this.queue}.dlq`;
     this.maxRetries = this.configService.get<number>('RABBITMQ_MAX_RETRIES', 2);
+  }
+
+  /** 注册重连回调，连接恢复后自动执行（如重建 DLQ 专用 channel） */
+  onReconnect(callback: () => Promise<void>): void {
+    this.reconnectCallbacks.push(callback);
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -85,6 +91,17 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     if (this.consumerHandler) {
       await this.registerConsumer(this.consumerHandler);
     }
+
+    // 非首次连接时，通知外部服务重建资源
+    if (this.reconnectAttempts > 0) {
+      for (const cb of this.reconnectCallbacks) {
+        try {
+          await cb();
+        } catch (err) {
+          this.logger.error(`Reconnect callback failed: ${getErrorMsg(err)}`);
+        }
+      }
+    }
   }
 
   private async setupTopology(): Promise<void> {
@@ -92,6 +109,18 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       await this.channel!.assertExchange(this.exchange, this.exchangeType, { durable: true });
     }
     await this.channel!.assertQueue(this.deadLetterQueue, { durable: true });
+
+    // 声明重试队列：每级递增 TTL，到期后通过死信路由回到主队列
+    for (let i = 1; i <= this.maxRetries; i++) {
+      const ttl = Math.pow(5, i) * 1000; // 5s, 25s, 125s, ...
+      await this.channel!.assertQueue(`${this.queue}.retry.${i}`, {
+        durable: true,
+        deadLetterExchange: '',
+        deadLetterRoutingKey: this.queue,
+        arguments: { 'x-message-ttl': ttl },
+      });
+    }
+
     await this.channel!.assertQueue(this.queue, {
       durable: true,
       deadLetterExchange: '',

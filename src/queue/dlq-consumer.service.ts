@@ -25,6 +25,15 @@ export class DlqConsumerService implements OnApplicationBootstrap {
     if (!this.configService.get<boolean>('RABBITMQ_DLQ_CONSUMER_ENABLED', true)) {
       return;
     }
+    await this.initChannel();
+
+    this.rabbitmqService.onReconnect(async () => {
+      this.channel = await this.rabbitmqService.createChannel();
+      this.logger.log('DLQ channel recreated after reconnection');
+    });
+  }
+
+  private async initChannel(): Promise<void> {
     this.channel = await this.rabbitmqService.createChannel();
     await this.channel.checkQueue(this.dlqQueue);
     this.logger.log(`DLQ monitor initialized on ${this.dlqQueue}`);
