@@ -16,7 +16,7 @@ export class SeedService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    if (this.configService.get<string>('SEED_ADMIN_ENABLED', 'false') !== 'true') {
+    if (!this.configService.get<boolean>('SEED_ADMIN_ENABLED', false)) {
       return;
     }
 

@@ -7,7 +7,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { Request } from 'express';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,7 +16,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const request = ctx.getRequest<Request & { requestId?: string; tenantId?: string }>();
+    const request = ctx.getRequest<{ requestId?: string; tenantId?: string; url?: string; method?: string }>();
     const response = ctx.getResponse<unknown>();
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : undefined;
@@ -29,7 +28,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(
-        `${request.method} ${request.url} failed`,
+        `${request.method ?? 'UNKNOWN'} ${request.url ?? 'UNKNOWN'} failed`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     }

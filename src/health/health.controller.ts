@@ -8,6 +8,7 @@ import {
 } from '@nestjs/terminus';
 import { Public } from '../common/decorators/public.decorator';
 import { TenantRequired } from '../common/decorators/tenant-required.decorator';
+import { RabbitmqService } from '../queue/rabbitmq.service';
 import { RedisService } from '../redis/redis.service';
 
 @ApiTags('health')
@@ -17,6 +18,7 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
     private readonly redis: RedisService,
+    private readonly rabbitmq: RabbitmqService,
   ) {}
 
   @Get()
@@ -31,6 +33,14 @@ export class HealthController {
           status: (await this.redis.ping()) === 'PONG' ? 'up' : 'down',
         },
       }),
+      async () => {
+        try {
+          await this.rabbitmq.connect();
+          return { rabbitmq: { status: 'up' } };
+        } catch {
+          return { rabbitmq: { status: 'down' } };
+        }
+      },
     ]);
   }
 }

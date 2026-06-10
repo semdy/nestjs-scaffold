@@ -5,4 +5,5 @@ export interface AuthenticatedUser {
   tenantId: string;
   email: string;
   role: UserRole;
+  active: boolean;
 }

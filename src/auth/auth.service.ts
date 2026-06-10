@@ -35,7 +35,7 @@ export class AuthService {
     const tenantId = this.tenancyContext.requireTenantId();
     const user = await this.usersService.findByEmailWithPassword(tenantId, dto.email);
 
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    if (!user || !user.active || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -94,6 +94,7 @@ export class AuthService {
       tenantId: user.tenantId,
       email: user.email,
       role: user.role,
+      active: user.active,
     };
 
     return this.jwtService.signAsync(payload, {

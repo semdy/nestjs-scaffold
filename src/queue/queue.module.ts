@@ -8,7 +8,6 @@ import { RabbitmqService } from './rabbitmq.service';
 import { DlqConsumerService } from './dlq-consumer.service';
 import { EventsCleanupService } from './events-cleanup.service';
 import { QueueAdminController } from './queue.controller';
-import { RedisService } from '../redis/redis.service';
 import { OutboxEvent } from './outbox-event.entity';
 import { ProcessedEvent } from './processed-event.entity';
 import { IdempotencyService } from './idempotency.guard';
@@ -22,7 +21,6 @@ import { IdempotencyService } from './idempotency.guard';
   ],
   controllers: [QueueAdminController],
   providers: [
-    RedisService,
     RabbitmqService,
     RabbitmqConsumer,
     DlqConsumerService,
