@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { ClassSerializerInterceptor, Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
@@ -14,7 +15,10 @@ async function createNestApp(): Promise<App> {
   const adapter = process.env.HTTP_ADAPTER ?? 'express';
 
   if (adapter === 'fastify') {
-    return NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: false }));
+    return NestFactory.create<NestFastifyApplication>(
+      AppModule,
+      new FastifyAdapter({ logger: false }),
+    );
   }
 
   return NestFactory.create<NestExpressApplication>(AppModule);
@@ -65,10 +69,22 @@ async function bootstrap() {
         .setDescription('Production-ready NestJS scaffold API')
         .setVersion('1.0')
         .addBearerAuth()
-        .addApiKey({ type: 'apiKey', name: configService.get<string>('app.tenantHeader') }, 'tenant')
+        .addApiKey(
+          { type: 'apiKey', name: configService.get<string>('app.tenantHeader') },
+          'tenant',
+        )
         .build(),
     );
-    SwaggerModule.setup(`${globalPrefix}/${configService.get<string>('app.swaggerPath', 'docs')}`, app, document);
+    SwaggerModule.setup(
+      `${globalPrefix}/${configService.get<string>('app.swaggerPath', 'docs')}`,
+      app,
+      document,
+    );
+
+    if (configService.get<boolean>('app.openapiExport', false)) {
+      writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
+      logger.log('openapi.json exported');
+    }
   }
 
   const port = configService.get<number>('app.port', 3000);

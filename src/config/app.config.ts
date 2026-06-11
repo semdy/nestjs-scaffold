@@ -1,6 +1,10 @@
 import { registerAs } from '@nestjs/config';
 
-const csv = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
+const csv = (value = '') =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 export const appConfig = registerAs('app', () => ({
   name: process.env.APP_NAME ?? 'nestjs-production-scaffold',
@@ -10,5 +14,6 @@ export const appConfig = registerAs('app', () => ({
   corsOrigins: csv(process.env.CORS_ORIGINS ?? '*'),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
   swaggerPath: process.env.SWAGGER_PATH ?? 'docs',
+  openapiExport: process.env.OPENAPI_EXPORT !== 'false',
   tenantHeader: (process.env.TENANT_HEADER ?? 'x-tenant-id').toLowerCase(),
 }));

@@ -25,7 +25,9 @@ export const envValidationSchema = Joi.object({
   REDIS_DB: Joi.number().integer().min(0).default(0),
   RABBITMQ_URL: Joi.string().uri().required(),
   RABBITMQ_EXCHANGE: Joi.string().allow('').default('app.events'),
-  RABBITMQ_EXCHANGE_TYPE: Joi.string().valid('direct', 'topic', 'fanout', 'headers').default('topic'),
+  RABBITMQ_EXCHANGE_TYPE: Joi.string()
+    .valid('direct', 'topic', 'fanout', 'headers')
+    .default('topic'),
   RABBITMQ_BINDING_KEY: Joi.string().allow('').default('#'),
   RABBITMQ_MAX_RETRIES: Joi.number().integer().min(1).max(2).default(2),
   RABBITMQ_QUEUE: Joi.string().required(),
@@ -34,11 +36,12 @@ export const envValidationSchema = Joi.object({
   RABBITMQ_PREFETCH: Joi.number().integer().positive().default(10),
   SWAGGER_ENABLED: Joi.boolean().default(true),
   SWAGGER_PATH: Joi.string().default('docs'),
+  OPENAPI_EXPORT: Joi.boolean().default(false),
   RATE_LIMIT_TTL: Joi.number().integer().positive().default(60000),
   RATE_LIMIT_LIMIT: Joi.number().integer().positive().default(120),
   TENANT_HEADER: Joi.string().default('x-tenant-id'),
   SEED_ADMIN_ENABLED: Joi.boolean().default(false),
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).optional(),
-  OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72)
+  OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72),
 });
