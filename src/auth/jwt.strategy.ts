@@ -24,6 +24,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User is inactive');
     }
 
+    if (!payload.tenantActive) {
+      throw new UnauthorizedException('Tenant is inactive');
+    }
+
     if (payload.iat) {
       const lastLogoutAt = await this.redis.get(`${LAST_LOGOUT_PREFIX}${payload.sub}`);
       if (lastLogoutAt && payload.iat < Number(lastLogoutAt)) {
