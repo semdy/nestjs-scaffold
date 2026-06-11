@@ -66,7 +66,7 @@ async function bootstrap() {
       app,
       new DocumentBuilder()
         .setTitle(configService.get<string>('app.name', 'NestJS API'))
-        .setDescription('Production-ready NestJS scaffold API')
+        .setDescription('NestJS scaffold API')
         .setVersion('1.0')
         .addBearerAuth()
         .addApiKey(
