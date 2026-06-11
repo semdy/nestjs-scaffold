@@ -26,14 +26,10 @@ export class EventsCleanupService {
   async cleanupExpiredEvents() {
     this.logger.log('Cleaning expired events...');
     await this.cleanupOutboxEvents().catch((err) =>
-      this.logger.error(
-        `Failed to clean outbox events: ${err instanceof Error ? err.message : String(err)}`,
-      ),
+      this.logger.error('Failed to clean outbox events:', err),
     );
     await this.cleanupProcessedEvents().catch((err) =>
-      this.logger.error(
-        `Failed to clean processed events: ${err instanceof Error ? err.message : String(err)}`,
-      ),
+      this.logger.error('Failed to clean processed events:', err),
     );
   }
 
