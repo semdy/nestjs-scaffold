@@ -8,7 +8,6 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { StringValue } from 'ms';
 import { IsNull, Repository } from 'typeorm';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
-import { TenancyService } from '../tenancy/tenancy.service';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { User } from '../users/user.entity';
 import { UsersService } from '../users/users.service';
@@ -34,28 +33,22 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly tenancyContext: TenancyContext,
-    private readonly tenancyService: TenancyService,
     private readonly configService: ConfigService,
     private readonly redis: RedisService,
   ) {}
 
   async login(dto: LoginDto, meta: AuthRequestMeta = {}): Promise<AuthResponseDto> {
     const tenantId = this.tenancyContext.requireTenantId();
-    const [tenant, user] = await Promise.all([
-      this.tenancyService.findActiveTenant(tenantId).catch(() => {
-        throw new UnauthorizedException('Tenant not found or inactive');
-      }),
-      this.usersService.findByEmailWithPassword(tenantId, dto.email),
-    ]);
+    const user = await this.usersService.findByEmailWithPassword(tenantId, dto.email);
 
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    if (!user || !user.active || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const { plainToken: refreshToken } = await this.createRefreshToken(user, meta);
 
     return {
-      accessToken: await this.createAccessToken(user, tenant.active),
+      accessToken: await this.createAccessToken(user),
       refreshToken,
       user: UserResponseDto.fromEntity(user),
     };
@@ -80,10 +73,6 @@ export class AuthService {
       throw this.refreshUnauthorized('USER_INACTIVE', 'User is inactive');
     }
 
-    const tenant = await this.tenancyService.findActiveTenant(storedToken.user.tenantId).catch(() => {
-      throw this.refreshUnauthorized('TENANT_INACTIVE', 'Tenant is inactive');
-    });
-
     const { plainToken: nextRefreshToken, entity: replacement } = await this.createRefreshToken(
       storedToken.user,
       meta,
@@ -94,7 +83,7 @@ export class AuthService {
     await this.refreshTokens.save(storedToken);
 
     return {
-      accessToken: await this.createAccessToken(storedToken.user, tenant.active),
+      accessToken: await this.createAccessToken(storedToken.user),
       refreshToken: nextRefreshToken,
       user: UserResponseDto.fromEntity(storedToken.user),
     };
@@ -123,14 +112,13 @@ export class AuthService {
     }
   }
 
-  private async createAccessToken(user: User, tenantActive: boolean): Promise<string> {
+  private async createAccessToken(user: User): Promise<string> {
     const payload: AuthenticatedUser = {
       sub: user.id,
       tenantId: user.tenantId,
       email: user.email,
       role: user.role,
       active: user.active,
-      tenantActive,
     };
 
     return this.jwtService.signAsync(payload, {

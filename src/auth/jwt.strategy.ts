@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthenticatedUser } from './authenticated-user.interface';
 import { RedisService } from '../redis/redis.service';
-import { LAST_LOGOUT_PREFIX } from '../common/constants';
+import { LAST_LOGOUT_PREFIX, TENANT_DEACTIVATED_PREFIX } from '../common/constants';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -24,14 +24,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User is inactive');
     }
 
-    if (!payload.tenantActive) {
-      throw new UnauthorizedException('Tenant is inactive');
-    }
-
     if (payload.iat) {
-      const lastLogoutAt = await this.redis.get(`${LAST_LOGOUT_PREFIX}${payload.sub}`);
+      const [lastLogoutAt, tenantDeactivatedAt] = await Promise.all([
+        this.redis.get(`${LAST_LOGOUT_PREFIX}${payload.sub}`),
+        this.redis.get(`${TENANT_DEACTIVATED_PREFIX}${payload.tenantId}`),
+      ]);
+
       if (lastLogoutAt && payload.iat < Number(lastLogoutAt)) {
         throw new UnauthorizedException('Token has been revoked');
+      }
+
+      if (tenantDeactivatedAt && payload.iat < Number(tenantDeactivatedAt)) {
+        throw new UnauthorizedException('Tenant has been deactivated');
       }
     }
 
