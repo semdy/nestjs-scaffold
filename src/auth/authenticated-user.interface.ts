@@ -6,4 +6,5 @@ export interface AuthenticatedUser {
   email: string;
   role: UserRole;
   active: boolean;
+  iat?: number;
 }

@@ -1,15 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron } from '@nestjs/schedule';
 import bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'node:crypto';
 import type { StringValue } from 'ms';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, LessThan, Repository } from 'typeorm';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { User } from '../users/user.entity';
 import { UsersService } from '../users/users.service';
+import { RedisService } from '../redis/redis.service';
 import { AuthenticatedUser } from './authenticated-user.interface';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
@@ -21,14 +23,19 @@ export interface AuthRequestMeta {
   userAgent?: string;
 }
 
+const LAST_LOGOUT_PREFIX = 'lastLogoutAt:';
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly tenancyContext: TenancyContext,
     private readonly configService: ConfigService,
+    private readonly redis: RedisService,
   ) {}
 
   async login(dto: LoginDto, meta: AuthRequestMeta = {}): Promise<AuthResponseDto> {
@@ -85,7 +92,25 @@ export class AuthService {
 
   async logout(dto: RefreshTokenDto): Promise<void> {
     const tokenHash = this.hashRefreshToken(dto.refreshToken);
-    await this.refreshTokens.update({ tokenHash, revokedAt: IsNull() }, { revokedAt: new Date() });
+    const storedToken = await this.refreshTokens.findOne({
+      where: { tokenHash },
+      select: ['userId', 'revokedAt'],
+    });
+    if (storedToken && !storedToken.revokedAt) {
+      // 吊销 refresh token
+      await this.refreshTokens.update(
+        { tokenHash, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+      // Redis 记录最后登出时间，access token 的 iat 早于此时间的均视为已吊销
+      const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
+      const ttlSeconds = this.parseTtlSeconds(expiresIn);
+      await this.redis.set(
+        `${LAST_LOGOUT_PREFIX}${storedToken.userId}`,
+        String(Math.floor(Date.now() / 1000)),
+        { ttlSeconds },
+      );
+    }
   }
 
   private async createAccessToken(user: User): Promise<string> {
@@ -130,5 +155,24 @@ export class AuthService {
 
   private refreshUnauthorized(code: string, message: string): UnauthorizedException {
     return new UnauthorizedException({ code, message });
+  }
+
+  private parseTtlSeconds(expiresIn: string): number {
+    const value = parseInt(expiresIn, 10);
+    if (expiresIn.endsWith('h')) return value * 3600;
+    if (expiresIn.endsWith('d')) return value * 86400;
+    if (expiresIn.endsWith('m')) return value * 60;
+    return value; // 默认秒
+  }
+
+  @Cron('0 0 3 * * *') // 每天凌晨 3 点
+  async cleanupExpiredTokens(): Promise<void> {
+    const cutoff = new Date(Date.now() - 30 * 86400_000);
+    const result = await this.refreshTokens.delete({
+      expiresAt: LessThan(cutoff),
+    });
+    if (result.affected) {
+      this.logger.log(`Cleaned up ${result.affected} expired refresh tokens`);
+    }
   }
 }
