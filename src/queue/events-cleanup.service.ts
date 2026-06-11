@@ -23,20 +23,23 @@ export class EventsCleanupService {
   }
 
   @Cron('0 */30 * * * *') // 每30分钟执行一次
-  async cleanExpiredEvents() {
+  async cleanupExpiredEvents() {
     this.logger.log('Cleaning expired events...');
-    await this.cleanOutboxEvents().catch((err) =>
-      this.logger.error(`Failed to clean outbox events: ${err instanceof Error ? err.message : String(err)}`),
+    await this.cleanupOutboxEvents().catch((err) =>
+      this.logger.error(
+        `Failed to clean outbox events: ${err instanceof Error ? err.message : String(err)}`,
+      ),
     );
-    await this.cleanProcessedEvents().catch((err) =>
-      this.logger.error(`Failed to clean processed events: ${err instanceof Error ? err.message : String(err)}`),
+    await this.cleanupProcessedEvents().catch((err) =>
+      this.logger.error(
+        `Failed to clean processed events: ${err instanceof Error ? err.message : String(err)}`,
+      ),
     );
   }
 
-  async cleanOutboxEvents(): Promise<void> {
+  async cleanupOutboxEvents(): Promise<void> {
     const cutoff = new Date(Date.now() - this.retentionHours * 3600_000);
 
-    // 分批删除，避免长事务锁表
     const result = await this.outboxRepo
       .createQueryBuilder()
       .delete()
@@ -51,7 +54,7 @@ export class EventsCleanupService {
     }
   }
 
-  async cleanProcessedEvents(): Promise<void> {
+  async cleanupProcessedEvents(): Promise<void> {
     const result = await this.processedEventRepo
       .createQueryBuilder()
       .delete()
