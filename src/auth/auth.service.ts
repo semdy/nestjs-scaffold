@@ -6,7 +6,7 @@ import { Cron } from '@nestjs/schedule';
 import bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'node:crypto';
 import type { StringValue } from 'ms';
-import { IsNull, LessThan, Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { User } from '../users/user.entity';
@@ -17,13 +17,12 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RefreshToken } from './refresh-token.entity';
+import { LAST_LOGOUT_PREFIX } from '../common/constants';
 
 export interface AuthRequestMeta {
   ipAddress?: string;
   userAgent?: string;
 }
-
-const LAST_LOGOUT_PREFIX = 'lastLogoutAt:';
 
 @Injectable()
 export class AuthService {
@@ -165,12 +164,15 @@ export class AuthService {
     return value; // 默认秒
   }
 
-  @Cron('0 0 3 * * *') // 每天凌晨 3 点
+  @Cron('0 3 * * *') // 每天凌晨3点执行
   async cleanupExpiredTokens(): Promise<void> {
     const cutoff = new Date(Date.now() - 30 * 86400_000);
-    const result = await this.refreshTokens.delete({
-      expiresAt: LessThan(cutoff),
-    });
+    const result = await this.refreshTokens
+      .createQueryBuilder()
+      .delete()
+      .where('expiresAt < :cutoff', { cutoff })
+      .orWhere('revokedAt IS NOT NULL AND revokedAt < :cutoff', { cutoff })
+      .execute();
     if (result.affected) {
       this.logger.log(`Cleaned up ${result.affected} expired refresh tokens`);
     }

@@ -4,8 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthenticatedUser } from './authenticated-user.interface';
 import { RedisService } from '../redis/redis.service';
-
-const LAST_LOGOUT_PREFIX = 'lastLogoutAt:';
+import { LAST_LOGOUT_PREFIX } from '../common/constants';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
