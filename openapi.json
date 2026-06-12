@@ -206,11 +206,6 @@
             "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "tags": [
           "adminQueue"
         ]
@@ -225,11 +220,6 @@
             "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "tags": [
           "adminQueue"
         ]
@@ -326,11 +316,6 @@
             "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "tags": [
           "users"
         ]
@@ -343,11 +328,6 @@
             "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "tags": [
           "users"
         ]
@@ -371,11 +351,6 @@
             "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "tags": [
           "users"
         ]
@@ -416,11 +391,6 @@
             }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "summary": "Update user",
         "tags": [
           "users"
@@ -454,11 +424,6 @@
             "description": "User deleted"
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "summary": "Delete user",
         "tags": [
           "users"

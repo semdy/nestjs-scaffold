@@ -1,10 +1,9 @@
 import { Controller, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { DlqConsumerService } from './dlq-consumer.service';
 import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('adminQueue')
-@ApiBearerAuth()
 @Controller('admin/queue')
 @Roles('admin')
 export class QueueAdminController {
