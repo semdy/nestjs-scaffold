@@ -7,7 +7,7 @@ const csv = (value = '') =>
     .filter(Boolean);
 
 export const appConfig = registerAs('app', () => ({
-  name: process.env.APP_NAME ?? 'nestjs-production-scaffold',
+  name: process.env.APP_NAME ?? 'nestjs-scaffold',
   port: Number(process.env.APP_PORT ?? 3000),
   adapter: (process.env.HTTP_ADAPTER ?? 'express') as 'express' | 'fastify',
   globalPrefix: process.env.GLOBAL_PREFIX ?? 'api',

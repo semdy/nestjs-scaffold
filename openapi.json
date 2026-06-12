@@ -15,10 +15,77 @@
         ]
       }
     },
+    "/api/v1/tenants": {
+      "get": {
+        "description": "Returns active tenants. Pass ?includeInactive=true to list all.",
+        "operationId": "TenancyController_findAll_v1",
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List tenants",
+        "tags": [
+          "tenants"
+        ]
+      },
+      "post": {
+        "operationId": "TenancyController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Slug already exists"
+          }
+        },
+        "summary": "Create tenant",
+        "tags": [
+          "tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/{id}": {
       "get": {
-        "description": "Returns the tenant if it exists and is active.",
-        "operationId": "TenancyController_getTenant_v1",
+        "operationId": "TenancyController_findOne_v1",
         "parameters": [
           {
             "name": "id",
@@ -42,19 +109,16 @@
             }
           },
           "404": {
-            "description": "Tenant not found or inactive"
+            "description": "Tenant not found"
           }
         },
-        "summary": "Get tenant details",
+        "summary": "Get tenant by ID",
         "tags": [
           "tenants"
         ]
-      }
-    },
-    "/api/v1/tenants/{id}/deactivate": {
-      "post": {
-        "description": "Deactivates the tenant and blacklists all existing access tokens via Redis.",
-        "operationId": "TenancyController_deactivateTenant_v1",
+      },
+      "patch": {
+        "operationId": "TenancyController_update_v1",
         "parameters": [
           {
             "name": "id",
@@ -66,15 +130,68 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Tenant deactivated"
-          },
-          "404": {
-            "description": "Tenant not found or already inactive"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantDto"
+              }
+            }
           }
         },
-        "summary": "Deactivate a tenant",
+        "responses": {
+          "200": {
+            "description": "Tenant updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        },
+        "summary": "Update tenant",
+        "tags": [
+          "tenants"
+        ]
+      },
+      "delete": {
+        "description": "Soft delete (set inactive + Redis blacklist) by default. Pass ?hard=true for physical deletion.",
+        "operationId": "TenancyController_remove_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Tenant ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hard",
+            "required": false,
+            "in": "query",
+            "description": "Permanently delete the record",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant deleted"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        },
+        "summary": "Delete tenant",
         "tags": [
           "tenants"
         ]
@@ -262,6 +379,90 @@
         "tags": [
           "users"
         ]
+      },
+      "patch": {
+        "description": "Partially update user fields. Only admin can change roles.",
+        "operationId": "UsersController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update user",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "description": "Soft delete (set inactive) by default. Pass ?hard=true for physical deletion.",
+        "operationId": "UsersController_remove_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hard",
+            "required": false,
+            "in": "query",
+            "description": "Permanently delete the record",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete user",
+        "tags": [
+          "users"
+        ]
       }
     },
     "/api/v1/health": {
@@ -434,8 +635,8 @@
     }
   },
   "info": {
-    "title": "nestjs-production-scaffold",
-    "description": "Production-ready NestJS scaffold API",
+    "title": "nestjs-scaffold",
+    "description": "NestJS scaffold API",
     "version": "1.0",
     "contact": {}
   },
@@ -491,6 +692,32 @@
           "createdAt",
           "updatedAt"
         ]
+      },
+      "CreateTenantDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "acme-corp"
+          },
+          "name": {
+            "type": "string",
+            "example": "Acme Corporation"
+          }
+        },
+        "required": [
+          "slug",
+          "name"
+        ]
+      },
+      "UpdateTenantDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Acme Corporation Updated"
+          }
+        }
       },
       "LoginDto": {
         "type": "object",
@@ -551,6 +778,78 @@
           "email",
           "name",
           "password"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ada@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "Ada Lovelace"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member",
+              "viewer"
+            ]
+          }
+        }
+      },
+      "UserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member",
+              "viewer"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "email",
+          "name",
+          "role",
+          "active",
+          "createdAt",
+          "updatedAt"
         ]
       }
     }

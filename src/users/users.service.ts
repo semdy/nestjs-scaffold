@@ -5,8 +5,12 @@ import bcrypt from 'bcrypt';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
 import { OutboxEvent } from '../queue/outbox-event.entity';
+import { RedisService } from '../redis/redis.service';
+import { LAST_LOGOUT_PREFIX } from '../common/constants';
+import { parseTtlSeconds } from '../common/utils/parse-ttl';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './user.entity';
 
 @Injectable()
@@ -16,6 +20,7 @@ export class UsersService {
     private readonly dataSource: DataSource,
     private readonly tenancyContext: TenancyContext,
     private readonly configService: ConfigService,
+    private readonly redis: RedisService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -97,6 +102,69 @@ export class UsersService {
       .getOne();
   }
 
+  async update(id: string, dto: UpdateUserDto): Promise<User> {
+    const tenantId = this.tenancyContext.requireTenantId();
+    const user = await this.users.findOne({ where: { id, tenantId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    /**
+     * 因为 (tenantId, email) 有数据库唯一约束：
+
+       @Unique('UQ_users_tenant_email', ['tenantId', 'email'])
+
+       同一个租户下永远不可能有两个相同邮箱的用户，findOne 最多返回一条。这个应用层检查只是为了把 DB 的约束冲突转成友好的 409 报错，而不是让 TypeORM 抛原始 QueryFailedError。
+
+       其它字段（name、role 等）没有唯一约束，不需要做冲突检测。
+     */
+    if (dto.email) {
+      const email = dto.email.toLowerCase();
+      const existing = await this.users.findOne({ where: { tenantId, email, active: true } });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('User email already exists in this tenant');
+      }
+      user.email = email;
+    }
+
+    if (dto.name !== undefined) {
+      user.name = dto.name;
+    }
+
+    if (dto.password !== undefined) {
+      const rounds = this.configService.get<number>('BCRYPT_ROUNDS', 12);
+      user.passwordHash = await bcrypt.hash(dto.password, rounds);
+    }
+
+    if (dto.role !== undefined) {
+      user.role = dto.role;
+    }
+
+    return this.users.save(user);
+  }
+
+  async remove(id: string, hard = false): Promise<void> {
+    const tenantId = this.tenancyContext.requireTenantId();
+    const user = await this.users.findOne({ where: { id, tenantId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (hard) {
+      await this.users.remove(user);
+      return;
+    }
+
+    // 软删除：标记 inactive 并即时吊销所有 access token
+    user.active = false;
+    await this.users.save(user);
+
+    const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
+    const ttlSeconds = parseTtlSeconds(expiresIn);
+    await this.redis.set(`${LAST_LOGOUT_PREFIX}${id}`, String(Math.floor(Date.now() / 1000)), {
+      ttlSeconds,
+    });
+  }
   private isUserEmailConflict(error: unknown): boolean {
     if (!(error instanceof QueryFailedError)) {
       return false;

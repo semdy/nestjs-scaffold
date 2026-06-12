@@ -18,6 +18,15 @@ export class UserResponseDto {
   @ApiProperty({ enum: ['admin', 'member', 'viewer'] })
   role: UserRole;
 
+  @ApiProperty()
+  active: boolean;
+
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty()
+  updatedAt: Date;
+
   static fromEntity(user: User): UserResponseDto {
     return {
       id: user.id,
@@ -25,6 +34,9 @@ export class UserResponseDto {
       email: user.email,
       name: user.name,
       role: user.role,
+      active: user.active,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 }

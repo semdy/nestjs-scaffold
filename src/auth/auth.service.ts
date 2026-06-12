@@ -18,6 +18,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RefreshToken } from './refresh-token.entity';
 import { LAST_LOGOUT_PREFIX } from '../common/constants';
+import { parseTtlSeconds } from '../common/utils/parse-ttl';
 
 export interface AuthRequestMeta {
   ipAddress?: string;
@@ -103,7 +104,7 @@ export class AuthService {
       );
       // Redis 记录最后登出时间，access token 的 iat 早于此时间的均视为已吊销
       const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
-      const ttlSeconds = this.parseTtlSeconds(expiresIn);
+      const ttlSeconds = parseTtlSeconds(expiresIn);
       await this.redis.set(
         `${LAST_LOGOUT_PREFIX}${storedToken.userId}`,
         String(Math.floor(Date.now() / 1000)),
@@ -154,14 +155,6 @@ export class AuthService {
 
   private refreshUnauthorized(code: string, message: string): UnauthorizedException {
     return new UnauthorizedException({ code, message });
-  }
-
-  private parseTtlSeconds(expiresIn: string): number {
-    const value = parseInt(expiresIn, 10);
-    if (expiresIn.endsWith('h')) return value * 3600;
-    if (expiresIn.endsWith('d')) return value * 86400;
-    if (expiresIn.endsWith('m')) return value * 60;
-    return value; // 默认秒
   }
 
   @Cron('0 3 * * *') // 每天凌晨3点执行

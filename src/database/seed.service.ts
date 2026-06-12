@@ -23,7 +23,9 @@ export class SeedService implements OnApplicationBootstrap {
     const email = this.configService.get<string>('SEED_ADMIN_EMAIL');
     const password = this.configService.get<string>('SEED_ADMIN_PASSWORD');
     if (!email || !password) {
-      this.logger.warn('Admin seed is enabled but SEED_ADMIN_EMAIL or SEED_ADMIN_PASSWORD is missing');
+      this.logger.warn(
+        'Admin seed is enabled but SEED_ADMIN_EMAIL or SEED_ADMIN_PASSWORD is missing',
+      );
       return;
     }
 
