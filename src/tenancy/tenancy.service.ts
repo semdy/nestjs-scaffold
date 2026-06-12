@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RedisService } from '../redis/redis.service';
-import { TENANT_DEACTIVATED_PREFIX } from '../common/constants';
+import { TENANT_DEACTIVATED_PREFIX, TENANT_SLUG_CACHE_PREFIX } from '../common/constants';
 import { parseTtlSeconds } from '../common/utils/parse-ttl';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -81,6 +81,29 @@ export class TenancyService {
       String(Math.floor(Date.now() / 1000)),
       { ttlSeconds },
     );
+  }
+
+  /**
+   * 根据 slug 解析租户 ID，优先读 Redis 缓存，未命中则查 DB 并写入缓存。
+   */
+  async resolveTenantId(slug: string): Promise<string | null> {
+    const cacheKey = `${TENANT_SLUG_CACHE_PREFIX}${slug}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const tenant = await this.tenants.findOne({
+      where: { slug, active: true },
+      select: ['id'],
+    });
+    if (!tenant) {
+      return null;
+    }
+
+    // 缓存 1 小时，减少 DB 查询
+    await this.redis.set(cacheKey, tenant.id, { ttlSeconds: 3600 });
+    return tenant.id;
   }
 
   async bootstrapDefaultTenant(): Promise<Tenant> {

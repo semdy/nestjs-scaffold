@@ -16,4 +16,5 @@ export const appConfig = registerAs('app', () => ({
   swaggerPath: process.env.SWAGGER_PATH ?? 'docs',
   openapiExport: process.env.OPENAPI_EXPORT !== 'false',
   tenantHeader: (process.env.TENANT_HEADER ?? 'x-tenant-id').toLowerCase(),
+  tenantResolution: (process.env.TENANT_RESOLUTION ?? 'header') as 'header' | 'subdomain',
 }));

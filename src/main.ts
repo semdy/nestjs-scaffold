@@ -73,6 +73,7 @@ async function bootstrap() {
           { type: 'apiKey', name: configService.get<string>('app.tenantHeader') },
           'tenant',
         )
+        .addSecurityRequirements('tenant')
         .build(),
     );
     SwaggerModule.setup(

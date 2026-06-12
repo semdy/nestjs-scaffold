@@ -40,6 +40,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL: Joi.number().integer().positive().default(60000),
   RATE_LIMIT_LIMIT: Joi.number().integer().positive().default(120),
   TENANT_HEADER: Joi.string().default('x-tenant-id'),
+  TENANT_RESOLUTION: Joi.string().valid('header', 'subdomain').default('header'),
   SEED_ADMIN_ENABLED: Joi.boolean().default(false),
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).optional(),

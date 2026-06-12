@@ -3,5 +3,6 @@ export const ROLES_KEY = 'roles';
 export const TENANT_REQUIRED_KEY = 'tenantRequired';
 export const LAST_LOGOUT_PREFIX = 'lastLogoutAt:';
 export const TENANT_DEACTIVATED_PREFIX = 'tenantDeactivatedAt:';
+export const TENANT_SLUG_CACHE_PREFIX = 'tenantSlug:';
 
 export type UserRole = 'admin' | 'member' | 'viewer';
