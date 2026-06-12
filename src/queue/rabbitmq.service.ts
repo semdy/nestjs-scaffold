@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
 import { SkipMessageError } from '../common/exceptions/errors.definitions';
 
@@ -185,10 +186,11 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
   async publish<T extends object>(routingKey: string, payload: T): Promise<boolean> {
     await this.connect();
+    const eventId = randomUUID();
     const body = Buffer.from(
-      JSON.stringify({ routingKey, payload, publishedAt: new Date().toISOString() }),
+      JSON.stringify({ id: eventId, routingKey, payload, publishedAt: new Date().toISOString() }),
     );
-    const options = { persistent: true, contentType: 'application/json' };
+    const options = { persistent: true, contentType: 'application/json', messageId: eventId };
 
     if (this.exchange) {
       return this.channel!.publish(this.exchange, routingKey, body, options);
@@ -280,15 +282,14 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       throw new Error('Queue message is missing routingKey');
     }
 
-    //优先从 AMQP messageId 取，其次从 body 的 id/eventId 字段取
+    // 优先从 AMQP messageId 取，其次从 body 的 id/eventId 字段取
+    // Debezium Outbox Router 通常不把 id 放进 body，messageId 也取决于 connector 配置
+    // 三个来源都不可用时生成 fallback UUID，避免丢消息
     const eventId =
       (rawMessage.properties.messageId as string) ||
-      (typeof parsed.id === 'string' ? parsed.id : '') ||
-      (typeof parsed.eventId === 'string' ? parsed.eventId : '');
-
-    if (!eventId) {
-      throw new Error('Queue message is missing eventId');
-    }
+      (typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : '') ||
+      (typeof parsed.eventId === 'string' && parsed.eventId.length > 0 ? parsed.eventId : '') ||
+      randomUUID();
 
     if (parsed.payload && typeof parsed.payload === 'object') {
       return {
