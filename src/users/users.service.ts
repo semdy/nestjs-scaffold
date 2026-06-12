@@ -152,13 +152,12 @@ export class UsersService {
 
     if (hard) {
       await this.users.remove(user);
-      return;
+    } else {
+      user.active = false;
+      await this.users.save(user);
     }
 
-    // 软删除：标记 inactive 并即时吊销所有 access token
-    user.active = false;
-    await this.users.save(user);
-
+    // 即时吊销该用户所有 access token
     const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
     const ttlSeconds = parseTtlSeconds(expiresIn);
     await this.redis.set(`${LAST_LOGOUT_PREFIX}${id}`, String(Math.floor(Date.now() / 1000)), {

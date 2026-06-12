@@ -65,17 +65,15 @@ export class TenancyService {
 
     if (hard) {
       await this.tenants.remove(tenant);
-      return;
+    } else {
+      if (!tenant.active) {
+        throw new NotFoundException('Tenant is already inactive');
+      }
+      tenant.active = false;
+      await this.tenants.save(tenant);
     }
 
-    // 软删除：标记 inactive 并即时吊销该租户下所有 access token
-    if (!tenant.active) {
-      throw new NotFoundException('Tenant is already inactive');
-    }
-
-    tenant.active = false;
-    await this.tenants.save(tenant);
-
+    // 即时吊销该租户下所有 access token
     const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
     const ttlSeconds = parseTtlSeconds(expiresIn);
     await this.redis.set(
