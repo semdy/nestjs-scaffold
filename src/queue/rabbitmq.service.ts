@@ -270,13 +270,9 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
   private parseMessage(rawMessage: ConsumeMessage): QueueEnvelope {
     const parsed = JSON.parse(rawMessage.content.toString()) as Record<string, unknown>;
-    const rawRoutingKey = rawMessage.fields.routingKey;
-    const routingKey =
-      typeof parsed.routingKey === 'string'
-        ? parsed.routingKey
-        : typeof rawRoutingKey === 'string' && rawRoutingKey.length > 0
-          ? rawRoutingKey
-          : undefined;
+    const payload = (parsed.payload || {}) as Record<string, unknown>;
+    const rawRoutingKey = rawMessage.fields.routingKey || payload.routingKey;
+    const routingKey = (parsed.routingKey || rawRoutingKey || '') as string;
 
     if (!routingKey) {
       throw new Error('Queue message is missing routingKey');
@@ -284,12 +280,15 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
     // 优先从 AMQP messageId 取，其次从 body 的 id/eventId 字段取
     // Debezium Outbox Router 通常不把 id 放进 body，messageId 也取决于 connector 配置
-    // 三个来源都不可用时生成 fallback UUID，避免丢消息
     const eventId =
       (rawMessage.properties.messageId as string) ||
-      (typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : '') ||
-      (typeof parsed.eventId === 'string' && parsed.eventId.length > 0 ? parsed.eventId : '') ||
-      randomUUID();
+      (parsed.id as string) ||
+      (payload.id as string) ||
+      this.parseIdFromDebeziumHeader(rawMessage.properties.headers?.id);
+
+    if (!eventId) {
+      throw new Error('Queue message is missing eventId');
+    }
 
     if (parsed.payload && typeof parsed.payload === 'object') {
       return {
@@ -310,6 +309,18 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     }
 
     throw new Error('Queue message is missing payload');
+  }
+
+  private parseIdFromDebeziumHeader(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    try {
+      return (JSON.parse(value) as Record<string, unknown>).payload as string;
+    } catch {
+      return value;
+    }
   }
 
   private resolvePublishedAt(parsed: Record<string, unknown>): string {
