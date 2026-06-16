@@ -8,8 +8,13 @@ services:
       DB_HOST: ${DOCKER_DB_HOST:-postgres}
       REDIS_HOST: redis
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672
+      # SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      SWAGGER_ENABLED: false
+      OPENAPI_EXPORT: ${OPENAPI_EXPORT:-true}
+      OPENAPI_SPEC_DIR: /app/spec
     volumes:
       - ./dist:/app/dist
+      - openapi-spec:/app/spec
     ports:
       - '${APP_PORT:-3000}:3000'
     depends_on:
@@ -168,9 +173,28 @@ services:
       retries: 10
       start_period: 30s
 
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    environment:
+      SWAGGER_JSON: /spec/openapi.json
+      # URLS: '[{"name":"API v1","url":"http://api:3000/api/docs-json"}]'
+      PORT: '8081'
+    volumes:
+      - openapi-spec:/spec:ro
+    ports:
+      - '${SWAGGER_UI_PORT:-8081}:8081'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8081 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
 volumes:
   debezium-data:
   postgres-data:
   mysql-data:
   redis-data:
   rabbitmq-data:
+  openapi-spec:

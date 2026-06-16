@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { ClassSerializerInterceptor, Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
@@ -61,7 +61,10 @@ async function bootstrap() {
     app.setGlobalPrefix(globalPrefix);
   }
 
-  if (configService.get<boolean>('app.swaggerEnabled', true)) {
+  const swaggerEnabled = configService.get<boolean>('app.swaggerEnabled', true);
+  const openapiExport = configService.get<boolean>('app.openapiExport', false);
+
+  if (swaggerEnabled || openapiExport) {
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()
@@ -77,15 +80,21 @@ async function bootstrap() {
         .addSecurityRequirements('tenant')
         .build(),
     );
-    SwaggerModule.setup(
-      `${globalPrefix}/${configService.get<string>('app.swaggerPath', 'docs')}`,
-      app,
-      document,
-    );
 
-    if (configService.get<boolean>('app.openapiExport', false)) {
-      writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
-      logger.log('openapi.json exported');
+    if (swaggerEnabled) {
+      SwaggerModule.setup(
+        `${globalPrefix}/${configService.get<string>('app.swaggerPath', 'docs')}`,
+        app,
+        document,
+      );
+    }
+
+    if (openapiExport) {
+      const specDir = configService.get<string>('app.openapiSpecDir', '.');
+      const specPath = `${specDir}/openapi.json`;
+      mkdirSync(specDir, { recursive: true });
+      writeFileSync(specPath, JSON.stringify(document, null, 2));
+      logger.log(`openapi.json exported to ${specPath}`);
     }
   }
 

@@ -696,6 +696,11 @@
             "minLength": 8,
             "maxLength": 128,
             "example": "change-me-123"
+          },
+          "tenantSlug": {
+            "type": "string",
+            "description": "Tenant slug, alternative to x-tenant-id header",
+            "example": "default"
           }
         },
         "required": [

@@ -171,6 +171,24 @@ services:
       retries: 10
       start_period: 30s
 
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    profiles: ['swagger']
+    environment:
+      SWAGGER_JSON: /spec/openapi.json
+      PORT: '8081'
+    volumes:
+      - ./openapi.json:/spec/openapi.json:ro
+    ports:
+      - '${SWAGGER_UI_PORT:-8081}:8081'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8081 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
 volumes:
   debezium-data:
   postgres-data:
