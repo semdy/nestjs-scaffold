@@ -213,7 +213,6 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
         if (!rawMessage) {
           return;
         }
-
         void this.handleMessage(rawMessage, handler);
       },
       { noAck: false },
