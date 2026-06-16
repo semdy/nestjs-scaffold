@@ -2,7 +2,7 @@ import Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
-  APP_NAME: Joi.string().default('nestjs-production-scaffold'),
+  APP_NAME: Joi.string().default('nestjs-scaffold'),
   APP_PORT: Joi.number().port().default(3000),
   HTTP_ADAPTER: Joi.string().valid('express', 'fastify').default('express'),
   GLOBAL_PREFIX: Joi.string().allow('').default('api'),

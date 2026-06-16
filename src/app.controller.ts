@@ -11,7 +11,7 @@ export class AppController {
   @TenantRequired(false)
   root() {
     return {
-      name: 'nestjs-production-scaffold',
+      name: 'nestjs-scaffold',
       docs: '/api/docs',
       health: '/api/health',
     };

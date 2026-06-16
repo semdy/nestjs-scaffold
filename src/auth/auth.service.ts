@@ -12,6 +12,7 @@ import { UserResponseDto } from '../users/dto/user-response.dto';
 import { User } from '../users/user.entity';
 import { UsersService } from '../users/users.service';
 import { RedisService } from '../redis/redis.service';
+import { TenancyService } from '../tenancy/tenancy.service';
 import { AuthenticatedUser } from './authenticated-user.interface';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
@@ -34,12 +35,24 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly tenancyContext: TenancyContext,
+    private readonly tenancyService: TenancyService,
     private readonly configService: ConfigService,
     private readonly redis: RedisService,
   ) {}
 
   async login(dto: LoginDto, meta: AuthRequestMeta = {}): Promise<AuthResponseDto> {
-    const tenantId = this.tenancyContext.requireTenantId();
+    let tenantId = this.tenancyContext.tenantId;
+
+    if (!tenantId && dto.tenantSlug) {
+      tenantId = (await this.tenancyService.resolveTenantId(dto.tenantSlug)) ?? undefined;
+    }
+
+    if (!tenantId) {
+      throw new UnauthorizedException(
+        'Tenant is required. Provide x-tenant-id header or tenantSlug in body.',
+      );
+    }
+
     const user = await this.usersService.findByEmailWithPassword(tenantId, dto.email);
 
     if (!user || !user.active || !(await bcrypt.compare(dto.password, user.passwordHash))) {

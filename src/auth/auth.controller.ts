@@ -15,26 +15,27 @@ interface RequestMetaSource {
 
 @ApiTags('auth')
 @Controller('auth')
+@TenantRequired(false)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
   @Public()
-  @TenantRequired()
   async login(@Body() dto: LoginDto, @Req() request: RequestMetaSource): Promise<AuthResponseDto> {
     return this.authService.login(dto, this.getRequestMeta(request));
   }
 
   @Post('refresh')
   @Public()
-  @TenantRequired(false)
-  async refresh(@Body() dto: RefreshTokenDto, @Req() request: RequestMetaSource): Promise<AuthResponseDto> {
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() request: RequestMetaSource,
+  ): Promise<AuthResponseDto> {
     return this.authService.refresh(dto, this.getRequestMeta(request));
   }
 
   @Post('logout')
   @Public()
-  @TenantRequired(false)
   async logout(@Body() dto: RefreshTokenDto): Promise<{ revoked: true }> {
     await this.authService.logout(dto);
     return { revoked: true };
