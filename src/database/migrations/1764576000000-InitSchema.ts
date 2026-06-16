@@ -1,11 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-  TableUnique,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 export class InitSchema1764576000000 implements MigrationInterface {
   name = 'InitSchema1764576000000';
@@ -54,9 +47,13 @@ export class InitSchema1764576000000 implements MigrationInterface {
         columnNames: ['tenantId', 'active', 'createdAt'],
       }),
     ]);
-    await queryRunner.createUniqueConstraint(
+    await queryRunner.createIndex(
       'users',
-      new TableUnique({ name: 'UQ_users_tenant_email', columnNames: ['tenantId', 'email'] }),
+      new TableIndex({
+        name: 'UQ_users_tenant_email',
+        columnNames: ['tenantId', 'email'],
+        isUnique: true,
+      }),
     );
     await queryRunner.createForeignKey(
       'users',

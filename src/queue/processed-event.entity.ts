@@ -9,9 +9,9 @@ export class ProcessedEvent {
   @Column({ type: 'varchar', length: 120 })
   routingKey: string;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: 'timestamp' })
   processedAt: Date;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: 'timestamp' })
   expiresAt: Date; // 过期后可由 EventsCleanupService 一起清理
 }

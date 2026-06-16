@@ -115,11 +115,14 @@ DB_HOST=localhost
 DB_PORT=3306
 ```
 
-本地启动 MySQL:
+本地启动 MySQL（含 migration 和 Debezium CDC）：
 
 ```bash
-docker compose -f docker-compose.dev.yml --profile mysql up -d mysql redis rabbitmq
+docker compose -f docker-compose.dev.yml --profile mysql up --build -d mysql redis rabbitmq migrate-mysql debezium-mysql swagger-ui
 ```
+
+> **注意**：MySQL 模式下 migrate 和 debezium 使用独立服务名 `migrate-mysql` / `debezium-mysql`，与 Postgres 的 `migrate` / `debezium` 区分。两者共用 `mysql` profile，会强制使用 `DB_TYPE=mysql`、`DB_HOST=mysql`、`DB_PORT=3306`。
+> Debezium MySQL 配置文件为 `docker/debezium/application-mysql.properties`，与 Postgres 的 `application.properties` 独立。
 
 ## Docker
 
@@ -391,10 +394,23 @@ binlog-format=ROW
 binlog-row-image=FULL
 ```
 
+MySQL 用户需要有 `REPLICATION CLIENT` 权限才能让 Debezium 读取 binlog。首次启动后执行一次：
+
+```bash
+docker compose -f docker-compose.dev.yml exec mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD:-root}" -e \
+  "GRANT REPLICATION CLIENT, REPLICATION SLAVE ON *.* TO \`app\`@'%'; FLUSH PRIVILEGES;"
+```
+
+> 也支持 `REPLICATION SLAVE`，Debezium MySQL connector 在某些快照模式下需要用到。
+
 启动示例：
 
 ```bash
-docker compose -f docker-compose.dev.yml --profile mysql --profile cdc up -d mysql redis rabbitmq debezium
+# 开发环境（MySQL + CDC）
+docker compose -f docker-compose.dev.yml --profile mysql up --build -d mysql redis rabbitmq migrate-mysql debezium-mysql swagger-ui
+
+# 生产环境（MySQL + CDC）
+docker compose --profile mysql up --build -d
 ```
 
 ### 验证 CDC 是否生效

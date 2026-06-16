@@ -173,6 +173,58 @@ services:
       retries: 10
       start_period: 30s
 
+  migrate-mysql:
+    build: .
+    command: npm run migration:run:prod
+    profiles: ['mysql']
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_HOST: mysql
+      DB_TYPE: mysql
+      DB_PORT: '3306'
+    volumes:
+      - ./dist:/app/dist
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  debezium-mysql:
+    image: quay.io/debezium/server:3.5.2.Final
+    profiles: ['mysql']
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DEBEZIUM_SOURCE_CONNECTOR_CLASS: io.debezium.connector.mysql.MySqlConnector
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      DEBEZIUM_SOURCE_DATABASE_HOST: mysql
+      DEBEZIUM_SOURCE_DATABASE_PORT: '3306'
+      DEBEZIUM_SOURCE_DATABASE_USER: ${DB_USERNAME:-app}
+      DEBEZIUM_SOURCE_DATABASE_PASSWORD: ${DB_PASSWORD:-app}
+      DEBEZIUM_SOURCE_DATABASE_DBNAME: ${DB_DATABASE:-app}
+      DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST: ${DB_DATABASE:-app}.outbox_events
+      DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST: ${DB_DATABASE:-app}
+    depends_on:
+      migrate-mysql:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./docker/debezium/application-mysql.properties:/debezium/config/application.properties:ro
+      - debezium-mysql-data:/debezium/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/q/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   swagger-ui:
     image: swaggerapi/swagger-ui:latest
     environment:
@@ -193,6 +245,7 @@ services:
 
 volumes:
   debezium-data:
+  debezium-mysql-data:
   postgres-data:
   mysql-data:
   redis-data:
