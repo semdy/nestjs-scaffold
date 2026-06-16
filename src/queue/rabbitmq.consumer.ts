@@ -72,6 +72,7 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
 
   private parseUserCreatedPayload(payload: Record<string, unknown>): UserCreatedEvent {
     const { userId, tenantId, email, occurredAt } = payload;
+
     if (
       typeof userId !== 'string' ||
       typeof tenantId !== 'string' ||

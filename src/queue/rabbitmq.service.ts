@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
 import { SkipMessageError } from '../common/exceptions/errors.definitions';
+import { parseJSON } from '@/common/utils/utils';
 
 export interface QueueEnvelope<T extends object = Record<string, unknown>> {
   eventId: string; // 来自 outbox event 的 id
@@ -232,6 +233,8 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
         return;
       }
 
+      this.logger.error('handleMessage error: ', error);
+
       const retryCount = this.getRetryCount(rawMessage);
       const routingKey = rawMessage.fields.routingKey;
 
@@ -270,9 +273,10 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
 
   private parseMessage(rawMessage: ConsumeMessage): QueueEnvelope {
     const parsed = JSON.parse(rawMessage.content.toString()) as Record<string, unknown>;
-    const payload = (parsed.payload || {}) as Record<string, unknown>;
-    const rawRoutingKey = rawMessage.fields.routingKey || payload.routingKey;
-    const routingKey = (parsed.routingKey || rawRoutingKey || '') as string;
+    const payload = parsed.payload as undefined | Record<string, unknown>;
+    const routingKey = (rawMessage.fields.routingKey ||
+      parsed.routingKey ||
+      payload?.routingKey) as string;
 
     if (!routingKey) {
       throw new Error('Queue message is missing routingKey');
@@ -283,32 +287,23 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     const eventId =
       (rawMessage.properties.messageId as string) ||
       (parsed.id as string) ||
-      (payload.id as string) ||
+      (payload?.id as string) ||
       this.parseIdFromDebeziumHeader(rawMessage.properties.headers?.id);
 
     if (!eventId) {
       throw new Error('Queue message is missing eventId');
     }
 
-    if (parsed.payload && typeof parsed.payload === 'object') {
-      return {
-        eventId,
-        routingKey,
-        payload: parsed.payload as Record<string, unknown>,
-        publishedAt: this.resolvePublishedAt(parsed),
-      };
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Queue message is missing payload or invalid');
     }
 
-    if (typeof parsed === 'object' && parsed !== null) {
-      return {
-        eventId,
-        routingKey,
-        payload: parsed,
-        publishedAt: this.resolvePublishedAt(parsed),
-      };
-    }
-
-    throw new Error('Queue message is missing payload');
+    return {
+      eventId,
+      routingKey,
+      payload: parseJSON(payload.payload ?? payload, {}),
+      publishedAt: this.resolvePublishedAt(parsed),
+    };
   }
 
   private parseIdFromDebeziumHeader(value: unknown): string | undefined {
