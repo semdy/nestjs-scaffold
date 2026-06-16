@@ -52,6 +52,7 @@ export class DlqConsumerService implements OnApplicationBootstrap {
   /** 重投：从 DLQ 取一条消息，转发到主队列，然后 ack DLQ 消息 */
   async republishOne(): Promise<{ republished: boolean; routingKey?: string }> {
     const msg = await this.channel!.get(this.dlqQueue, { noAck: false });
+
     if (!msg) {
       return { republished: false };
     }

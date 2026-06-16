@@ -301,7 +301,7 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     return {
       eventId,
       routingKey,
-      payload: parseJSON(payload.payload ?? payload, {}),
+      payload: parseJSON(payload.payload) ?? payload,
       publishedAt: this.resolvePublishedAt(parsed),
     };
   }
@@ -322,8 +322,9 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     if (typeof parsed.publishedAt === 'string') {
       return parsed.publishedAt;
     }
-    if (typeof parsed.createdAt === 'string') {
-      return parsed.createdAt;
+    const payload = parsed.payload as Record<string, unknown>;
+    if (typeof payload.publishedAt === 'string') {
+      return payload.publishedAt;
     }
     return new Date().toISOString();
   }
