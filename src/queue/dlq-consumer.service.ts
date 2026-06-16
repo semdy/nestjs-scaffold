@@ -57,11 +57,16 @@ export class DlqConsumerService implements OnApplicationBootstrap {
       return { republished: false };
     }
 
-    const routingKey = msg.fields.routingKey;
+    // 从 header 或 body 中读取原始 routingKey，而不是 msg.fields.routingKey（可能是 dlq 队列名）
+    const routingKey =
+      (msg.properties.headers?.['x-original-routing-key'] as string | undefined) ??
+      this.rabbitmqService.tryGetRoutingKeyFromBody(msg.content) ??
+      msg.fields.routingKey;
+
     const options = {
       persistent: true,
       contentType: 'application/json',
-      headers: { 'x-republish': true },
+      headers: { ...(msg.properties.headers as Record<string, unknown>), 'x-republish': true },
     };
 
     if (this.exchange) {

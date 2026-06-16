@@ -222,8 +222,10 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
   }
 
   private async handleMessage(rawMessage: ConsumeMessage, handler: QueueHandler): Promise<void> {
+    let routingKey: string | undefined;
     try {
       const message = this.parseMessage(rawMessage);
+      routingKey = message.routingKey;
       await handler(message, rawMessage);
       this.channel!.ack(rawMessage);
     } catch (error) {
@@ -236,7 +238,11 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       this.logger.error('handleMessage error: ', error);
 
       const retryCount = this.getRetryCount(rawMessage);
-      const routingKey = rawMessage.fields.routingKey;
+      if (!routingKey) {
+        // parseMessage 可能已经抛异常了，尝试从 body 中提取 routingKey
+        routingKey =
+          this.tryGetRoutingKeyFromBody(rawMessage.content) ?? rawMessage.fields.routingKey;
+      }
 
       if (retryCount < this.maxRetries) {
         // 投递到重试队列，消息到期后自动回到主队列
@@ -249,7 +255,10 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
         const sent = this.channel!.sendToQueue(retryQueue, rawMessage.content, {
           persistent: true,
           contentType: 'application/json',
-          headers: { 'x-retry-count': retryCount + 1 },
+          headers: {
+            'x-retry-count': retryCount + 1,
+            'x-original-routing-key': routingKey,
+          },
         });
         if (sent) {
           this.channel!.ack(rawMessage); // 发送成功才 ack
@@ -271,12 +280,29 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     }
   }
 
+  /** 从消息体中尝试提取 routingKey（parseMessage 失败时的降级手段） */
+  tryGetRoutingKeyFromBody(content: Buffer): string | undefined {
+    try {
+      const parsed = JSON.parse(content.toString()) as Record<string, unknown>;
+      const payload = parsed.payload as Record<string, unknown> | undefined;
+      return (parsed.routingKey as string) || (payload?.routingKey as string) || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private parseMessage(rawMessage: ConsumeMessage): QueueEnvelope {
     const parsed = JSON.parse(rawMessage.content.toString()) as Record<string, unknown>;
     const payload = parsed.payload as undefined | Record<string, unknown>;
-    const routingKey = (rawMessage.fields.routingKey ||
-      parsed.routingKey ||
-      payload?.routingKey) as string;
+
+    // 路由键优先级：body 字段 > 重试时保存的 header > AMQP 原生 routingKey
+    // body 里的 routingKey 由 Debezium Outbox Router 写入，经过 retry/DLQ 也不会变；
+    // AMQP routingKey 在 retry（sendToQueue）和 DLQ（deadLetterRoutingKey）时会丢失原始值
+    const routingKey =
+      (typeof parsed.routingKey === 'string' ? parsed.routingKey : '') ||
+      (rawMessage.properties.headers?.['x-original-routing-key'] as string | undefined) ||
+      rawMessage.fields.routingKey ||
+      (payload?.routingKey as string | undefined);
 
     if (!routingKey) {
       throw new Error('Queue message is missing routingKey');
