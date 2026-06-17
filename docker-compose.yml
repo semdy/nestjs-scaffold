@@ -193,20 +193,22 @@ services:
   debezium-mysql:
     image: quay.io/debezium/server:3.5.2.Final
     profiles: ['mysql']
-    env_file:
-      - path: .env
-        required: false
     environment:
       DEBEZIUM_SOURCE_CONNECTOR_CLASS: io.debezium.connector.mysql.MySqlConnector
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-app}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-app}
       DEBEZIUM_SOURCE_DATABASE_HOST: mysql
       DEBEZIUM_SOURCE_DATABASE_PORT: '3306'
       DEBEZIUM_SOURCE_DATABASE_USER: ${DB_USERNAME:-app}
       DEBEZIUM_SOURCE_DATABASE_PASSWORD: ${DB_PASSWORD:-app}
       DEBEZIUM_SOURCE_DATABASE_DBNAME: ${DB_DATABASE:-app}
       DEBEZIUM_SOURCE_TABLE_INCLUDE_LIST: ${DB_DATABASE:-app}.outbox_events
-      DEBEZIUM_SOURCE_SCHEMA_INCLUDE_LIST: ${DB_DATABASE:-app}
+      DEBEZIUM_SOURCE_SNAPSHOT_MODE: when_needed
+      DEBEZIUM_SOURCE_OFFSET_STORAGE_FILE: data/offsets.dat
+      DEBEZIUM_SOURCE_SCHEMA_HISTORY_FILE: data/schema-history.dat
+      DEBEZIUM_RABBITMQ_EXCHANGE: app.events
     depends_on:
       migrate-mysql:
         condition: service_completed_successfully
