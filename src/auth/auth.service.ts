@@ -96,6 +96,15 @@ export class AuthService {
     storedToken.replacedByTokenId = replacement?.id;
     await this.refreshTokens.save(storedToken);
 
+    // 吊销旧 access token：记录刷新时间，JWT 策略会拒绝 iat 早于此时间的 access token
+    const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
+    const ttlSeconds = parseTtlSeconds(expiresIn);
+    await this.redis.set(
+      `${LAST_LOGOUT_PREFIX}${storedToken.userId}`,
+      String(Math.floor(Date.now() / 1000)),
+      { ttlSeconds },
+    );
+
     return {
       accessToken: await this.createAccessToken(storedToken.user),
       refreshToken: nextRefreshToken,
