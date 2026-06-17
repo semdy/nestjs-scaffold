@@ -86,6 +86,7 @@ async function bootstrap() {
         `${globalPrefix}/${configService.get<string>('app.swaggerPath', 'docs')}`,
         app,
         document,
+        { swaggerOptions: { persistAuthorization: true } },
       );
     }
 
