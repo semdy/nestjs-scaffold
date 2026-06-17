@@ -1,17 +1,14 @@
 import { ArgumentsHost, BadRequestException, Catch, ExceptionFilter } from '@nestjs/common';
+import { tenantStore } from '../../tenancy/tenancy-context.service';
 
 @Catch(BadRequestException)
 export class LocalValidationExceptionFilter implements ExceptionFilter {
   catch(exception: BadRequestException, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const request = ctx.getRequest<{
-      url?: string;
-      method?: string;
-      requestId?: string;
-      tenantId?: string;
-    }>();
+    const request = ctx.getRequest<{ url?: string; method?: string }>();
     const response = ctx.getResponse<unknown>();
     const body = exception.getResponse();
+    const store = tenantStore.getStore();
 
     const payload = {
       statusCode: 400,
@@ -24,8 +21,8 @@ export class LocalValidationExceptionFilter implements ExceptionFilter {
       details: body,
       path: request.url,
       method: request.method,
-      requestId: request.requestId,
-      tenantId: request.tenantId,
+      requestId: store?.requestId,
+      tenantId: store?.tenantId,
       timestamp: new Date().toISOString(),
     };
 

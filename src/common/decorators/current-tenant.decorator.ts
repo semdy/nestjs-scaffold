@@ -1,6 +1,6 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { createParamDecorator } from '@nestjs/common';
+import { tenantStore } from '../../tenancy/tenancy-context.service';
 
-export const CurrentTenant = createParamDecorator((_: unknown, ctx: ExecutionContext): string | undefined => {
-  const request = ctx.switchToHttp().getRequest<{ tenantId?: string }>();
-  return request.tenantId;
+export const CurrentTenant = createParamDecorator((): string | undefined => {
+  return tenantStore.getStore()?.tenantId;
 });

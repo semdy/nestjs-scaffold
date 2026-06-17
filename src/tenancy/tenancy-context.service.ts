@@ -6,20 +6,20 @@ export interface TenantStore {
   tenantId?: string;
 }
 
+export const tenantStore = new AsyncLocalStorage<TenantStore>();
+
 @Injectable()
 export class TenancyContext {
-  private readonly storage = new AsyncLocalStorage<TenantStore>();
-
   run<T>(store: TenantStore, callback: () => T): T {
-    return this.storage.run(store, callback);
+    return tenantStore.run(store, callback);
   }
 
   get tenantId(): string | undefined {
-    return this.storage.getStore()?.tenantId;
+    return tenantStore.getStore()?.tenantId;
   }
 
   get requestId(): string | undefined {
-    return this.storage.getStore()?.requestId;
+    return tenantStore.getStore()?.requestId;
   }
 
   requireTenantId(): string {
