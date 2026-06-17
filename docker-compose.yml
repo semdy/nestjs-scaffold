@@ -239,7 +239,7 @@ services:
       - '${SWAGGER_UI_PORT:-8081}:8081'
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:8081 || exit 1']
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8081 || exit 1']
       interval: 10s
       timeout: 5s
       retries: 3
