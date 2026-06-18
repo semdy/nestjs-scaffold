@@ -19,7 +19,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "prisma:schema:mysql": "node scripts/generate-mysql-schema.mjs"
   },
   "dependencies": {
     "@fastify/compress": "^8.3.1",

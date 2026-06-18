@@ -116,6 +116,14 @@ DB_HOST=localhost
 DB_PORT=3306
 ```
 
+Prisma schema 以 `prisma/schema.prisma`（PostgreSQL）为唯一源，MySQL 版本由脚本自动生成：
+
+```bash
+npm run prisma:schema:mysql
+```
+
+修改模型后只需编辑 `schema.prisma`，然后运行上述命令即可同步 `schema-mysql.prisma`。
+
 本地启动 MySQL（含 migration 和 Debezium CDC）：
 
 ```bash
@@ -205,7 +213,12 @@ Migration 文件分别存放在 `prisma/migrations/`（PostgreSQL）和 `prisma/
 修改 schema 后，生成新的 migration：
 
 ```bash
+# PostgreSQL
 npm run prisma:migrate:dev
+
+# MySQL（先同步 schema，再生成 migration）
+npm run prisma:schema:mysql
+DB_TYPE=mysql DATABASE_URL=mysql://... npm run prisma:migrate:dev
 ```
 
 ### 生产环境

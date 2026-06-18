@@ -14,6 +14,7 @@ npm run prisma:migrate:dev       # prisma migrate dev (creates migration from sc
 npm run prisma:migrate:deploy    # prisma migrate deploy (applies pending migrations)
 npm run prisma:studio            # prisma studio (visual DB browser)
 npm run prisma:generate          # prisma generate (regenerate client after schema change)
+npm run prisma:schema:mysql      # generate schema-mysql.prisma from schema.prisma
 ```
 
 ## Architecture
@@ -90,7 +91,7 @@ Prisma client is generated to `src/generated/prisma/` (gitignored). Regenerate a
 
 Migrations live in `prisma/migrations/` as SQL files. Use `prisma migrate dev` for development and `prisma migrate deploy` for production. Docker-compose migrate services run `npx prisma migrate deploy`.
 
-`DB_TYPE=postgres|mysql` controls which Prisma schema file and adapter are used. `prisma.config.ts` selects `schema.prisma` or `schema-mysql.prisma` based on `DB_TYPE`. `PrismaService` creates the corresponding adapter (`PrismaPg` or `PrismaMariaDb`). MySQL migrations go in `prisma/migrations-mysql/`.
+`DB_TYPE=postgres|mysql` controls which Prisma schema file and adapter are used. `prisma.config.ts` selects `schema.prisma` or `schema-mysql.prisma` based on `DB_TYPE`. `PrismaService` creates the corresponding adapter (`PrismaPg` or `PrismaMariaDb`). `schema-mysql.prisma` is auto-generated from `schema.prisma` via `npm run prisma:schema:mysql` — only edit `schema.prisma`. MySQL migrations go in `prisma/migrations-mysql/`.
 
 ### HTTP adapter switching
 

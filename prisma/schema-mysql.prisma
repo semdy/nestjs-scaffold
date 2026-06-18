@@ -1,3 +1,6 @@
+// AUTO-GENERATED from schema.prisma — do not edit manually.
+// Run: npm run prisma:schema:mysql
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
