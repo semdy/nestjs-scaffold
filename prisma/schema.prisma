@@ -22,17 +22,17 @@ model Tenant {
 }
 
 model User {
-  id           String   @id @db.VarChar(36)
-  tenantId     String   @db.VarChar(36)
-  email        String   @db.VarChar(180)
-  name         String   @db.VarChar(120)
-  passwordHash String   @db.VarChar(255)
-  role         String   @default("member") @db.VarChar(30)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @db.Timestamp()
-  updatedAt    DateTime @updatedAt @db.Timestamp()
+  id           String           @id @db.VarChar(36)
+  tenantId     String           @db.VarChar(36)
+  email        String           @db.VarChar(180)
+  name         String           @db.VarChar(120)
+  passwordHash String           @db.VarChar(255)
+  role         String           @default("member") @db.VarChar(30)
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @db.Timestamp()
+  updatedAt    DateTime         @updatedAt @db.Timestamp()
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
 
   @@unique([tenantId, email], map: "UQ_users_tenant_email")
@@ -54,8 +54,8 @@ model RefreshToken {
   createdAt         DateTime  @default(now()) @db.Timestamp()
   updatedAt         DateTime  @updatedAt @db.Timestamp()
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tenantId], map: "IDX_refresh_tokens_tenant_id")
   @@index([userId], map: "IDX_refresh_tokens_user_id")
