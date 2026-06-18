@@ -111,6 +111,7 @@ HTTP_ADAPTER=fastify
 
 ```env
 DB_TYPE=mysql
+DATABASE_URL=mysql://app:app@localhost:3306/app
 DB_HOST=localhost
 DB_PORT=3306
 ```
@@ -145,17 +146,19 @@ src/
   auth/        JWT 登录、策略、DTO
   common/      装饰器、守卫、过滤器、拦截器、中间件
   config/      环境变量校验和应用配置
-  database/    TypeORM 配置、启动种子
+  database/    启动种子
+  generated/   Prisma 自动生成（gitignored）
   health/      DB/Redis 健康检查
+  prisma/      PrismaService、PrismaModule、健康指示器
   queue/       RabbitMQ 发布服务
   redis/       Redis 客户端
-  tenancy/     租户实体和 AsyncLocalStorage 请求上下文
+  tenancy/     租户服务和 AsyncLocalStorage 请求上下文
   users/       多租户用户示例模块
 ```
 
 ## 多租户约定
 
-所有实体主键默认继承 `UuidV7Entity`，使用应用层生成的 UUID v7，兼顾分布式 ID 与索引写入局部性。所有租户隔离实体继承 `TenantScopedEntity` 并带 `tenantId` 字段。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并显式加入 `where` 条件。全局 `TenantGuard` 会拒绝缺失租户头或 token 租户与请求租户不一致的请求。
+所有租户隔离模型带 `tenantId` 字段，主键使用应用层生成的 UUID v7（`uuid` 包的 `v7()`），兼顾分布式 ID 与索引写入局部性。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并显式加入 `where` 条件。全局 `TenantGuard` 会拒绝缺失租户头或 token 租户与请求租户不一致的请求。`User` 模型的 `passwordHash` 字段通过 Prisma 全局 `omit` 配置默认不返回，需要时用 `omit: { passwordHash: false }` 显式包含。
 
 ## 索引约定
 
@@ -178,33 +181,34 @@ src/
 ## 常用命令
 
 ```bash
-npm run build
-npm run lint
-npm run test
-npm run migration:generate -- src/database/migrations/Init
-npm run migration:run
-npm run migration:run:prod
+npm run build                    # prisma generate && nest build
+npm run lint                     # eslint --fix
+npm run test                     # jest
+npm run start:dev                # prisma generate && nest start --watch
+npm run prisma:generate          # 重新生成 Prisma Client
+npm run prisma:migrate:dev       # 开发环境创建 migration
+npm run prisma:migrate:deploy    # 生产环境应用 migration
+npm run prisma:studio            # 可视化数据库浏览器
 ```
 
 ## Migration 模式
 
-开发初期可以用：
+项目使用 Prisma Migrate 管理表结构。Schema 文件位于：
 
-```env
-DB_SYNCHRONIZE=true
-```
+- PostgreSQL：`prisma/schema.prisma`
+- MySQL：`prisma/schema-mysql.prisma`
 
-如果要改成 migration 管理表结构，建议：
+Migration 文件分别存放在 `prisma/migrations/`（PostgreSQL）和 `prisma/migrations-mysql/`（MySQL）。`prisma.config.ts` 根据 `DB_TYPE` 自动选择对应的 schema 和 migration 目录。
 
-```env
-DB_SYNCHRONIZE=false
-```
+### 开发环境
 
-然后执行：
+修改 schema 后，生成新的 migration：
 
 ```bash
-npm run migration:run
+npm run prisma:migrate:dev
 ```
+
+### 生产环境
 
 生产 Docker Compose 内置了一个一次性 `migrate` 服务，`api` 会等待 `migrate` 成功后再启动：
 
@@ -224,16 +228,10 @@ docker compose run --rm migrate
 docker compose -f docker-compose.dev.yml run --rm migrate
 ```
 
-项目内置了一个初始 migration 示例：
-
-```text
-src/database/migrations/1764576000000-InitSchema.ts
-```
-
-后续修改 entity 后，可以生成新的 migration：
+手动部署 migration：
 
 ```bash
-npm run migration:generate -- src/database/migrations/AddOrders
+npm run prisma:migrate:deploy
 ```
 
 ## RabbitMQ 消费示例
@@ -244,7 +242,6 @@ npm run migration:generate -- src/database/migrations/AddOrders
 src/queue/rabbitmq.consumer.ts
 src/queue/handlers/user-created.handler.ts
 src/queue/events/user-created.event.ts
-src/queue/outbox-event.entity.ts
 ```
 
 默认拓扑如下：
@@ -323,7 +320,6 @@ cp .env.example .env
 
 ```env
 DB_TYPE=postgres
-DB_SYNCHRONIZE=false
 RABBITMQ_EXCHANGE=app.events
 RABBITMQ_EXCHANGE_TYPE=topic
 RABBITMQ_BINDING_KEY=#
@@ -424,7 +420,7 @@ docker compose --profile mysql up --build -d
 
 ### 运行建议
 
-- 生产环境建议 `DB_SYNCHRONIZE=false`，统一走 migration
+- 生产环境统一走 Prisma Migrate（`prisma migrate deploy`）
 - Outbox 和 CDC 语义通常是 at-least-once，下游消费者应保持幂等
 - 如果后续需要按事件类型拆分队列，可以新增 RabbitMQ binding，例如 `user.*`
 - 如果要把 Debezium 发出的 routing key 精细路由到多队列，建议为每个消费组单独建队列并绑定 `app.events` topic exchange

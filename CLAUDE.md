@@ -90,6 +90,8 @@ Prisma client is generated to `src/generated/prisma/` (gitignored). Regenerate a
 
 Migrations live in `prisma/migrations/` as SQL files. Use `prisma migrate dev` for development and `prisma migrate deploy` for production. Docker-compose migrate services run `npx prisma migrate deploy`.
 
+`DB_TYPE=postgres|mysql` controls which Prisma schema file and adapter are used. `prisma.config.ts` selects `schema.prisma` or `schema-mysql.prisma` based on `DB_TYPE`. `PrismaService` creates the corresponding adapter (`PrismaPg` or `PrismaMariaDb`). MySQL migrations go in `prisma/migrations-mysql/`.
+
 ### HTTP adapter switching
 
 `HTTP_ADAPTER=express|fastify` in `main.ts`. The bootstrap function chooses between `NestExpressApplication` and `NestFastifyApplication`. Security middleware differs per adapter: Express uses `helmet` + `compression`, Fastify uses `@fastify/helmet` + `@fastify/compress` (dynamic imports to avoid loading Fastify packages in Express mode).
