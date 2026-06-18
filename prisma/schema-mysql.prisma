@@ -11,7 +11,7 @@ datasource db {
 }
 
 model Tenant {
-  id        String   @id @db.VarChar(36)
+  id        String   @id @default(uuid(7)) @db.VarChar(36)
   slug      String   @unique(map: "IDX_tenants_slug") @db.VarChar(120)
   name      String   @db.VarChar(160)
   active    Boolean  @default(true)
@@ -25,17 +25,17 @@ model Tenant {
 }
 
 model User {
-  id           String   @id @db.VarChar(36)
-  tenantId     String   @db.VarChar(36)
-  email        String   @db.VarChar(180)
-  name         String   @db.VarChar(120)
-  passwordHash String   @db.VarChar(255)
-  role         String   @default("member") @db.VarChar(30)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @db.Timestamp(0)
-  updatedAt    DateTime @updatedAt @db.Timestamp(0)
+  id           String           @id @default(uuid(7)) @db.VarChar(36)
+  tenantId     String           @db.VarChar(36)
+  email        String           @db.VarChar(180)
+  name         String           @db.VarChar(120)
+  passwordHash String           @db.VarChar(255)
+  role         String           @default("member") @db.VarChar(30)
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt    DateTime         @updatedAt @db.Timestamp(0)
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
 
   @@unique([tenantId, email], map: "UQ_users_tenant_email")
@@ -45,7 +45,7 @@ model User {
 }
 
 model RefreshToken {
-  id                String    @id @db.VarChar(36)
+  id                String    @id @default(uuid(7)) @db.VarChar(36)
   tenantId          String    @db.VarChar(36)
   userId            String    @db.VarChar(36)
   tokenHash         String    @unique(map: "IDX_refresh_tokens_token_hash") @db.VarChar(64)
@@ -57,8 +57,8 @@ model RefreshToken {
   createdAt         DateTime  @default(now()) @db.Timestamp(0)
   updatedAt         DateTime  @updatedAt @db.Timestamp(0)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tenantId], map: "IDX_refresh_tokens_tenant_id")
   @@index([userId], map: "IDX_refresh_tokens_user_id")
@@ -67,7 +67,7 @@ model RefreshToken {
 }
 
 model OutboxEvent {
-  id            String   @id @db.VarChar(36)
+  id            String   @id @default(uuid(7)) @db.VarChar(36)
   tenantId      String   @db.VarChar(36)
   aggregateType String   @db.VarChar(80)
   aggregateId   String   @db.VarChar(36)

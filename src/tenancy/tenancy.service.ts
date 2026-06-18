@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { v7 as uuidv7 } from 'uuid';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TENANT_DEACTIVATED_PREFIX, TENANT_SLUG_CACHE_PREFIX } from '../common/constants';
@@ -49,7 +49,7 @@ export class TenancyService {
     }
 
     return this.prisma.tenant.create({
-      data: { id: uuidv7(), ...dto },
+      data: { ...dto },
     });
   }
 
@@ -119,7 +119,7 @@ export class TenancyService {
     }
 
     return this.prisma.tenant.create({
-      data: { id: uuidv7(), slug: 'default', name: 'Default Tenant' },
+      data: { slug: 'default', name: 'Default Tenant' },
     });
   }
 }

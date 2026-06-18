@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Cron } from '@nestjs/schedule';
 import bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'node:crypto';
-import { v7 as uuidv7 } from 'uuid';
+
 import type { StringValue } from 'ms';
 import { UserRole, LAST_LOGOUT_PREFIX } from '../common/constants';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
@@ -161,11 +161,9 @@ export class AuthService {
     const refreshToken = randomBytes(64).toString('base64url');
     const expiresInDays = this.configService.get<number>('REFRESH_TOKEN_EXPIRES_IN_DAYS', 30);
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
-    const id = uuidv7();
 
-    await this.prisma.refreshToken.create({
+    const record = await this.prisma.refreshToken.create({
       data: {
-        id,
         tenantId: user.tenantId,
         userId: user.id,
         tokenHash: this.hashRefreshToken(refreshToken),
@@ -175,7 +173,7 @@ export class AuthService {
       },
     });
 
-    return { plainToken: refreshToken, id };
+    return { plainToken: refreshToken, id: record.id };
   }
 
   private hashRefreshToken(refreshToken: string): string {

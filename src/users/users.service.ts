@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
-import { v7 as uuidv7 } from 'uuid';
+
 import { Prisma } from '../generated/prisma/client';
 import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
 import { RedisService } from '../redis/redis.service';
@@ -39,7 +39,6 @@ export class UsersService {
       return await this.prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: {
-            id: uuidv7(),
             tenantId,
             email,
             name: dto.name,
@@ -52,7 +51,6 @@ export class UsersService {
         // CDC subscribes to inserts in outbox_events and forwards them to the queue.
         await tx.outboxEvent.create({
           data: {
-            id: uuidv7(),
             tenantId: user.tenantId,
             aggregateType: 'user',
             aggregateId: user.id,

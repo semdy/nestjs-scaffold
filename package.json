@@ -57,8 +57,7 @@
     "pg": "^8.16.3",
     "prisma": "^7.8.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "uuid": "^13.0.0"
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
@@ -104,9 +103,6 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "transformIgnorePatterns": [
-      "node_modules/(?!(uuid)/)"
-    ],
     "collectCoverageFrom": [
       "src/**/*.(t|j)s"
     ],
