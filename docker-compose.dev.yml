@@ -8,7 +8,8 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: postgresql://${DB_USERNAME:-app}:${DB_PASSWORD:-app}@${DOCKER_DB_HOST:-postgres}:5432/${DB_DATABASE:-app}
+      DB_HOST: ${DOCKER_DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
       REDIS_HOST: redis
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672
     volumes:
@@ -40,7 +41,8 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: postgresql://${DB_USERNAME:-app}:${DB_PASSWORD:-app}@${DOCKER_DB_HOST:-postgres}:5432/${DB_DATABASE:-app}
+      DB_HOST: ${DOCKER_DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
     volumes:
       - .:/app
       - /app/node_modules
@@ -181,7 +183,9 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: mysql://${DB_USERNAME:-app}:${DB_PASSWORD:-app}@mysql:3306/${DB_DATABASE:-app}
+      DB_TYPE: mysql
+      DB_HOST: mysql
+      DB_PORT: ${DB_PORT:-3306}
     volumes:
       - .:/app
       - /app/node_modules

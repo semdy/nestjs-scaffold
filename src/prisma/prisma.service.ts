@@ -3,20 +3,26 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '../generated/prisma/client';
 
-function createAdapter() {
+function buildConnectionString() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   const dbType = process.env.DB_TYPE ?? 'postgres';
+  const protocol = dbType === 'mysql' ? 'mysql' : 'postgresql';
+  const host = process.env.DB_HOST ?? 'localhost';
+  const port = process.env.DB_PORT ?? (dbType === 'mysql' ? '3306' : '5432');
+  const user = encodeURIComponent(process.env.DB_USERNAME ?? 'app');
+  const password = encodeURIComponent(process.env.DB_PASSWORD ?? '');
+  const database = process.env.DB_DATABASE ?? 'app';
+  return `${protocol}://${user}:${password}@${host}:${port}/${database}`;
+}
 
-  if (dbType === 'mysql') {
-    return new PrismaMariaDb({
-      host: process.env.DB_HOST ?? 'localhost',
-      port: Number(process.env.DB_PORT ?? 3306),
-      user: process.env.DB_USERNAME ?? 'app',
-      password: process.env.DB_PASSWORD ?? '',
-      database: process.env.DB_DATABASE ?? 'app',
-    });
+function createAdapter() {
+  const connectionString = buildConnectionString();
+
+  if ((process.env.DB_TYPE ?? 'postgres') === 'mysql') {
+    return new PrismaMariaDb(connectionString);
   }
 
-  return new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  return new PrismaPg({ connectionString });
 }
 
 @Injectable()

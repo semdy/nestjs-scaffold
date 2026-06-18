@@ -111,7 +111,6 @@ HTTP_ADAPTER=fastify
 
 ```env
 DB_TYPE=mysql
-DATABASE_URL=mysql://app:app@localhost:3306/app
 DB_HOST=localhost
 DB_PORT=3306
 ```

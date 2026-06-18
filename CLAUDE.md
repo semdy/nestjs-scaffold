@@ -83,7 +83,7 @@ When switching to MySQL CDC, these rules apply:
 
 ### Database
 
-The ORM is **Prisma 7**. The schema is at `prisma/schema.prisma` with `provider = "postgresql"` (default). CLI configuration (DATABASE_URL for migrations) lives in `prisma.config.ts`. The runtime connection is established via `@prisma/adapter-pg` in `PrismaService`.
+The ORM is **Prisma 7**. The schema is at `prisma/schema.prisma` with `provider = "postgresql"` (default). CLI configuration lives in `prisma.config.ts`, which auto-constructs `DATABASE_URL` from `DB_*` vars (explicit `DATABASE_URL` is optional override). The runtime connection is established via `@prisma/adapter-pg` or `@prisma/adapter-mariadb` in `PrismaService`, both using individual `DB_*` params directly.
 
 `PrismaModule` is a `@Global()` module; all services inject `PrismaService` directly — no per-module registration needed.
 
