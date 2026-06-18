@@ -1,76 +1,82 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { v7 as uuidv7 } from 'uuid';
+import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TENANT_DEACTIVATED_PREFIX, TENANT_SLUG_CACHE_PREFIX } from '../common/constants';
 import { parseTtlSeconds } from '../common/utils/parse-ttl';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant } from './tenant.entity';
 
 @Injectable()
 export class TenancyService {
   constructor(
-    @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
+    private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly configService: ConfigService,
   ) {}
 
-  async findAll(includeInactive = false): Promise<Tenant[]> {
-    const where: Record<string, unknown> = {};
-    if (!includeInactive) {
-      where.active = true;
-    }
-    return this.tenants.find({ where, order: { createdAt: 'DESC' } });
+  async findAll(includeInactive = false) {
+    return this.prisma.tenant.findMany({
+      where: includeInactive ? {} : { active: true },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  async findById(id: string): Promise<Tenant> {
-    const tenant = await this.tenants.findOne({ where: { id } });
+  async findById(id: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
     return tenant;
   }
 
-  async findActiveTenant(id: string): Promise<Tenant> {
-    const tenant = await this.tenants.findOne({ where: { id, active: true } });
+  async findActiveTenant(id: string) {
+    const tenant = await this.prisma.tenant.findFirst({ where: { id, active: true } });
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
     return tenant;
   }
 
-  async create(dto: CreateTenantDto): Promise<Tenant> {
-    const exists = await this.tenants.exists({ where: { slug: dto.slug } });
+  async create(dto: CreateTenantDto) {
+    const exists = await this.prisma.tenant.findUnique({
+      where: { slug: dto.slug },
+      select: { id: true },
+    });
     if (exists) {
       throw new ConflictException('Tenant slug already exists');
     }
 
-    return this.tenants.save(this.tenants.create(dto));
+    return this.prisma.tenant.create({
+      data: { id: uuidv7(), ...dto },
+    });
   }
 
-  async update(id: string, dto: UpdateTenantDto): Promise<Tenant> {
+  async update(id: string, dto: UpdateTenantDto) {
     const tenant = await this.findById(id);
 
+    const data: Record<string, unknown> = {};
     if (dto.name !== undefined) {
-      tenant.name = dto.name;
+      data.name = dto.name;
     }
 
-    return this.tenants.save(tenant);
+    return this.prisma.tenant.update({
+      where: { id: tenant.id },
+      data,
+    });
   }
 
   async remove(id: string, hard = false): Promise<void> {
     const tenant = await this.findById(id);
 
     if (hard) {
-      await this.tenants.remove(tenant);
+      await this.prisma.tenant.delete({ where: { id } });
     } else {
       if (!tenant.active) {
         throw new NotFoundException('Tenant is already inactive');
       }
-      tenant.active = false;
-      await this.tenants.save(tenant);
+      await this.prisma.tenant.update({ where: { id }, data: { active: false } });
     }
 
     // 即时吊销该租户下所有 access token
@@ -93,9 +99,9 @@ export class TenancyService {
       return cached;
     }
 
-    const tenant = await this.tenants.findOne({
+    const tenant = await this.prisma.tenant.findFirst({
       where: { slug, active: true },
-      select: ['id'],
+      select: { id: true },
     });
     if (!tenant) {
       return null;
@@ -106,12 +112,14 @@ export class TenancyService {
     return tenant.id;
   }
 
-  async bootstrapDefaultTenant(): Promise<Tenant> {
-    const existing = await this.tenants.findOne({ where: { slug: 'default' } });
+  async bootstrapDefaultTenant() {
+    const existing = await this.prisma.tenant.findFirst({ where: { slug: 'default' } });
     if (existing) {
       return existing;
     }
 
-    return this.tenants.save(this.tenants.create({ slug: 'default', name: 'Default Tenant' }));
+    return this.prisma.tenant.create({
+      data: { id: uuidv7(), slug: 'default', name: 'Default Tenant' },
+    });
   }
 }

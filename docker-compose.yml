@@ -5,7 +5,7 @@ services:
       - path: .env
         required: false
     environment:
-      DB_HOST: ${DOCKER_DB_HOST:-postgres}
+      DATABASE_URL: postgresql://${DB_USERNAME:-app}:${DB_PASSWORD:-app}@${DOCKER_DB_HOST:-postgres}:5432/${DB_DATABASE:-app}
       REDIS_HOST: redis
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672
       # SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
@@ -38,14 +38,12 @@ services:
 
   migrate:
     build: .
-    command: npm run migration:run:prod
+    command: npx prisma migrate deploy
     env_file:
       - path: .env
         required: false
     environment:
-      DB_HOST: ${DOCKER_DB_HOST:-postgres}
-    volumes:
-      - ./dist:/app/dist
+      DATABASE_URL: postgresql://${DB_USERNAME:-app}:${DB_PASSWORD:-app}@${DOCKER_DB_HOST:-postgres}:5432/${DB_DATABASE:-app}
     depends_on:
       postgres:
         condition: service_healthy
@@ -175,17 +173,13 @@ services:
 
   migrate-mysql:
     build: .
-    command: npm run migration:run:prod
+    command: npx prisma migrate deploy
     profiles: ['mysql']
     env_file:
       - path: .env
         required: false
     environment:
-      DB_HOST: mysql
-      DB_TYPE: mysql
-      DB_PORT: '3306'
-    volumes:
-      - ./dist:/app/dist
+      DATABASE_URL: mysql://${DB_USERNAME:-app}:${DB_PASSWORD:-app}@mysql:3306/${DB_DATABASE:-app}
     depends_on:
       mysql:
         condition: service_healthy

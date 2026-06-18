@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id        String   @id @db.VarChar(36)
+  slug      String   @unique(map: "IDX_tenants_slug") @db.VarChar(120)
+  name      String   @db.VarChar(160)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamp()
+  updatedAt DateTime @updatedAt @db.Timestamp()
+
+  users         User[]
+  refreshTokens RefreshToken[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @db.VarChar(36)
+  tenantId     String   @db.VarChar(36)
+  email        String   @db.VarChar(180)
+  name         String   @db.VarChar(120)
+  passwordHash String   @db.VarChar(255)
+  role         String   @default("member") @db.VarChar(30)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamp()
+  updatedAt    DateTime @updatedAt @db.Timestamp()
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@unique([tenantId, email], map: "UQ_users_tenant_email")
+  @@index([tenantId], map: "IDX_users_tenant_id")
+  @@index([tenantId, active, createdAt], map: "IDX_users_tenant_active_created_at")
+  @@map("users")
+}
+
+model RefreshToken {
+  id                String    @id @db.VarChar(36)
+  tenantId          String    @db.VarChar(36)
+  userId            String    @db.VarChar(36)
+  tokenHash         String    @unique(map: "IDX_refresh_tokens_token_hash") @db.VarChar(64)
+  expiresAt         DateTime  @db.Timestamp()
+  revokedAt         DateTime? @db.Timestamp()
+  replacedByTokenId String?   @db.VarChar(36)
+  userAgent         String?   @db.VarChar(512)
+  ipAddress         String?   @db.VarChar(64)
+  createdAt         DateTime  @default(now()) @db.Timestamp()
+  updatedAt         DateTime  @updatedAt @db.Timestamp()
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId], map: "IDX_refresh_tokens_tenant_id")
+  @@index([userId], map: "IDX_refresh_tokens_user_id")
+  @@index([userId, revokedAt, expiresAt], map: "IDX_refresh_tokens_user_revoked_expires")
+  @@map("refresh_tokens")
+}
+
+model OutboxEvent {
+  id            String   @id @db.VarChar(36)
+  tenantId      String   @db.VarChar(36)
+  aggregateType String   @db.VarChar(80)
+  aggregateId   String   @db.VarChar(36)
+  routingKey    String   @db.VarChar(120)
+  payload       Json     @db.Json
+  createdAt     DateTime @default(now()) @db.Timestamp()
+
+  @@index([tenantId, createdAt], map: "IDX_outbox_events_tenant_created_at")
+  @@index([aggregateType, aggregateId], map: "IDX_outbox_events_aggregate")
+  @@index([routingKey, createdAt], map: "IDX_outbox_events_routing_key_created_at")
+  @@map("outbox_events")
+}
+
+model ProcessedEvent {
+  eventId     String   @id @db.VarChar(36)
+  routingKey  String   @db.VarChar(120)
+  processedAt DateTime @db.Timestamp()
+  expiresAt   DateTime @db.Timestamp()
+
+  @@index([expiresAt], map: "IDX_processed_events_expires")
+  @@map("processed_events")
+}

@@ -1,24 +1,22 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'node:crypto';
+import { v7 as uuidv7 } from 'uuid';
 import type { StringValue } from 'ms';
-import { IsNull, Repository } from 'typeorm';
+import { UserRole, LAST_LOGOUT_PREFIX } from '../common/constants';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
 import { UserResponseDto } from '../users/dto/user-response.dto';
-import { User } from '../users/user.entity';
-import { UsersService } from '../users/users.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TenancyService } from '../tenancy/tenancy.service';
+import { UsersService } from '../users/users.service';
 import { AuthenticatedUser } from './authenticated-user.interface';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { RefreshToken } from './refresh-token.entity';
-import { LAST_LOGOUT_PREFIX } from '../common/constants';
 import { parseTtlSeconds } from '../common/utils/parse-ttl';
 
 export interface AuthRequestMeta {
@@ -31,7 +29,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
+    private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly tenancyContext: TenancyContext,
@@ -70,9 +68,9 @@ export class AuthService {
 
   async refresh(dto: RefreshTokenDto, meta: AuthRequestMeta = {}): Promise<AuthResponseDto> {
     const tokenHash = this.hashRefreshToken(dto.refreshToken);
-    const storedToken = await this.refreshTokens.findOne({
-      where: { tokenHash, revokedAt: IsNull() },
-      relations: { user: true },
+    const storedToken = await this.prisma.refreshToken.findFirst({
+      where: { tokenHash, revokedAt: null },
+      include: { user: true },
     });
 
     if (!storedToken) {
@@ -87,14 +85,15 @@ export class AuthService {
       throw this.refreshUnauthorized('USER_INACTIVE', 'User is inactive');
     }
 
-    const { plainToken: nextRefreshToken, entity: replacement } = await this.createRefreshToken(
+    const { plainToken: nextRefreshToken, id: replacementId } = await this.createRefreshToken(
       storedToken.user,
       meta,
     );
 
-    storedToken.revokedAt = new Date();
-    storedToken.replacedByTokenId = replacement?.id;
-    await this.refreshTokens.save(storedToken);
+    await this.prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date(), replacedByTokenId: replacementId },
+    });
 
     // 吊销旧 access token：记录刷新时间，JWT 策略会拒绝 iat 早于此时间的 access token
     const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
@@ -114,16 +113,16 @@ export class AuthService {
 
   async logout(dto: RefreshTokenDto): Promise<void> {
     const tokenHash = this.hashRefreshToken(dto.refreshToken);
-    const storedToken = await this.refreshTokens.findOne({
+    const storedToken = await this.prisma.refreshToken.findFirst({
       where: { tokenHash },
-      select: ['userId', 'revokedAt'],
+      select: { userId: true, revokedAt: true },
     });
     if (storedToken && !storedToken.revokedAt) {
       // 吊销 refresh token
-      await this.refreshTokens.update(
-        { tokenHash, revokedAt: IsNull() },
-        { revokedAt: new Date() },
-      );
+      await this.prisma.refreshToken.updateMany({
+        where: { tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
       // Redis 记录最后登出时间，access token 的 iat 早于此时间的均视为已吊销
       const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
       const ttlSeconds = parseTtlSeconds(expiresIn);
@@ -135,12 +134,18 @@ export class AuthService {
     }
   }
 
-  private async createAccessToken(user: User): Promise<string> {
+  private async createAccessToken(user: {
+    id: string;
+    tenantId: string;
+    email: string;
+    role: string;
+    active: boolean;
+  }): Promise<string> {
     const payload: AuthenticatedUser = {
       sub: user.id,
       tenantId: user.tenantId,
       email: user.email,
-      role: user.role,
+      role: user.role as UserRole,
       active: user.active,
     };
 
@@ -150,25 +155,27 @@ export class AuthService {
   }
 
   private async createRefreshToken(
-    user: User,
+    user: { id: string; tenantId: string },
     meta: AuthRequestMeta,
-  ): Promise<{ plainToken: string; entity: RefreshToken }> {
+  ): Promise<{ plainToken: string; id: string }> {
     const refreshToken = randomBytes(64).toString('base64url');
     const expiresInDays = this.configService.get<number>('REFRESH_TOKEN_EXPIRES_IN_DAYS', 30);
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+    const id = uuidv7();
 
-    const entity = await this.refreshTokens.save(
-      this.refreshTokens.create({
+    await this.prisma.refreshToken.create({
+      data: {
+        id,
         tenantId: user.tenantId,
         userId: user.id,
         tokenHash: this.hashRefreshToken(refreshToken),
         expiresAt,
         userAgent: meta.userAgent,
         ipAddress: meta.ipAddress,
-      }),
-    );
+      },
+    });
 
-    return { plainToken: refreshToken, entity };
+    return { plainToken: refreshToken, id };
   }
 
   private hashRefreshToken(refreshToken: string): string {
@@ -182,14 +189,13 @@ export class AuthService {
   @Cron('0 3 * * *') // 每天凌晨3点执行
   async cleanupExpiredTokens(): Promise<void> {
     const cutoff = new Date(Date.now() - 30 * 86400_000);
-    const result = await this.refreshTokens
-      .createQueryBuilder()
-      .delete()
-      .where('expiresAt < :cutoff', { cutoff })
-      .orWhere('revokedAt IS NOT NULL AND revokedAt < :cutoff', { cutoff })
-      .execute();
-    if (result.affected) {
-      this.logger.log(`Cleaned up ${result.affected} expired refresh tokens`);
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: {
+        OR: [{ expiresAt: { lt: cutoff } }, { revokedAt: { not: null, lt: cutoff } }],
+      },
+    });
+    if (result.count) {
+      this.logger.log(`Cleaned up ${result.count} expired refresh tokens`);
     }
   }
 }

@@ -1,12 +1,11 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { USER_CREATED_ROUTING_KEY, UserCreatedEvent } from './events/user-created.event';
 import { UserCreatedHandler } from './handlers/user-created.handler';
 import { QueueEnvelope, RabbitmqService } from './rabbitmq.service';
 import { IdempotencyService } from './idempotency.guard';
-import { ProcessedEvent } from './processed-event.entity';
+import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../generated/prisma/client';
 import { SkipMessageError } from '../common/exceptions/errors.definitions';
 
 @Injectable()
@@ -14,8 +13,7 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
   private readonly logger = new Logger(RabbitmqConsumer.name);
 
   constructor(
-    @InjectRepository(ProcessedEvent)
-    private readonly processedEventRepo: Repository<ProcessedEvent>,
+    private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly rabbitmqService: RabbitmqService,
     private readonly userCreatedHandler: UserCreatedHandler,
@@ -42,16 +40,17 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
 
     // 第二道：事务内数据库去重，尝试插入去重记录，eventId 是主键，重复插入会抛唯一约束异常
     try {
-      await this.processedEventRepo.insert({
-        eventId: message.eventId,
-        routingKey: message.routingKey,
-        processedAt: new Date(),
-        expiresAt: new Date(Date.now() + 7 * 86400_000), // 7天
+      await this.prisma.processedEvent.create({
+        data: {
+          eventId: message.eventId,
+          routingKey: message.routingKey,
+          processedAt: new Date(),
+          expiresAt: new Date(Date.now() + 7 * 86400_000), // 7天
+        },
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       // 唯一约束冲突 = 已处理过，安全跳过
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (err.code === '23505') {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         this.logger.error(`DB dedup: event ${message.eventId} already processed, skipping!`);
         throw new SkipMessageError(); // 自定义错误，上层 catch 做 ack
       }

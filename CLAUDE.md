@@ -5,15 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run build                    # nest build
+npm run build                    # prisma generate && nest build
 npm run lint                     # eslint {src,test}/**/*.ts --fix
 npm run test                     # jest
-npm run test -- --testPathPattern auth.service  # single test file
-npm run start:dev                # nest start --watch
-npm run migration:generate -- src/database/migrations/AddOrders
-npm run migration:run            # local migration run (ts-node)
-npm run migration:run:prod       # production migration run (compiled JS)
-npm run migration:revert
+npx jest --testPathPatterns auth.service  # single test file (Jest 30+)
+npm run start:dev                # prisma generate && nest start --watch
+npm run prisma:migrate:dev       # prisma migrate dev (creates migration from schema diff)
+npm run prisma:migrate:deploy    # prisma migrate deploy (applies pending migrations)
+npm run prisma:studio            # prisma studio (visual DB browser)
+npm run prisma:generate          # prisma generate (regenerate client after schema change)
 ```
 
 ## Architecture
@@ -38,7 +38,7 @@ Tenant isolation is request-scoped via `AsyncLocalStorage`. The `TenancyContext`
 - `requireTenantId()` — returns current tenant or throws
 - `tenantId` / `requestId` — nullable getters
 
-All tenant-scoped entities extend `TenantScopedEntity` which adds a `tenantId` column and inherits `UuidV7Entity` (UUID v7 primary key generated at app layer). Business queries **must** explicitly include `tenantId` in WHERE — there's no automatic row-level filtering.
+All tenant-scoped models include a `tenantId` field. UUID v7 primary keys are generated explicitly in service code via the `uuid` package (`v7 as uuidv7`). Business queries **must** explicitly include `tenantId` in WHERE — there's no automatic row-level filtering. The `passwordHash` field on the User model is globally omitted from queries via Prisma's `omit` config in `PrismaService`; use `omit: { passwordHash: false }` to include it explicitly.
 
 The `CurrentTenant` param decorator reads `tenantStore.getStore()?.tenantId` from the AsyncLocalStorage store directly (no DI needed).
 
@@ -80,11 +80,15 @@ When switching to MySQL CDC, these rules apply:
 
 5. MySQL table names in Debezium config use the format `database.table` (e.g. `app.outbox_events`), not `schema.table`.
 
-### Database switching
+### Database
 
-`DB_TYPE=postgres|mysql` controls the TypeORM dialect. The `typeorm.config.ts` reads `process.env.DB_TYPE` directly (not through `ConfigService`) because TypeORM's `DataSource` needs static options for CLI migration commands. All five entities are registered in `dataSourceOptions.entities`.
+The ORM is **Prisma 7**. The schema is at `prisma/schema.prisma` with `provider = "postgresql"` (default). CLI configuration (DATABASE_URL for migrations) lives in `prisma.config.ts`. The runtime connection is established via `@prisma/adapter-pg` in `PrismaService`.
 
-Migrations live in `src/database/migrations/`. They're referenced by the TypeORM CLI (`ts-node`) and compiled to `dist/database/migrations/` for production runs.
+`PrismaModule` is a `@Global()` module; all services inject `PrismaService` directly — no per-module registration needed.
+
+Prisma client is generated to `src/generated/prisma/` (gitignored). Regenerate after schema changes with `npm run prisma:generate`. The `build` script runs `prisma generate` automatically.
+
+Migrations live in `prisma/migrations/` as SQL files. Use `prisma migrate dev` for development and `prisma migrate deploy` for production. Docker-compose migrate services run `npx prisma migrate deploy`.
 
 ### HTTP adapter switching
 

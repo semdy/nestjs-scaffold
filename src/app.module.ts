@@ -12,7 +12,7 @@ import { ResponseEnvelopeInterceptor } from './common/interceptors/response-enve
 import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 import { appConfig } from './config/app.config';
 import { envValidationSchema } from './config/env.validation';
-import { DatabaseModule } from './database/database.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { SeedService } from './database/seed.service';
 import { HealthModule } from './health/health.module';
 import { QueueModule } from './queue/queue.module';
@@ -39,7 +39,7 @@ import { AppController } from './app.controller';
         },
       ],
     }),
-    DatabaseModule,
+    PrismaModule,
     TenancyModule,
     RedisModule,
     QueueModule,

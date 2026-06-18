@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { OutboxEvent } from './outbox-event.entity';
-import { ProcessedEvent } from './processed-event.entity';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class EventsCleanupService {
@@ -12,10 +9,7 @@ export class EventsCleanupService {
   private readonly retentionHours: number;
 
   constructor(
-    @InjectRepository(OutboxEvent)
-    private readonly outboxRepo: Repository<OutboxEvent>,
-    @InjectRepository(ProcessedEvent)
-    private readonly processedEventRepo: Repository<ProcessedEvent>,
+    private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
     // 保留最近 N 小时的事件，给 Debezium 足够的消费窗口
@@ -36,30 +30,22 @@ export class EventsCleanupService {
   async cleanupOutboxEvents(): Promise<void> {
     const cutoff = new Date(Date.now() - this.retentionHours * 3600_000);
 
-    const result = await this.outboxRepo
-      .createQueryBuilder()
-      .delete()
-      .from(OutboxEvent)
-      .where('createdAt < :cutoff', { cutoff })
-      .execute();
+    const result = await this.prisma.outboxEvent.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
 
-    if ((result.affected ?? 0) > 0) {
-      this.logger.log(
-        `Cleaned ${result.affected} outbox events older than ${cutoff.toISOString()}`,
-      );
+    if (result.count > 0) {
+      this.logger.log(`Cleaned ${result.count} outbox events older than ${cutoff.toISOString()}`);
     }
   }
 
   async cleanupProcessedEvents(): Promise<void> {
-    const result = await this.processedEventRepo
-      .createQueryBuilder()
-      .delete()
-      .from(ProcessedEvent)
-      .where('expiresAt < :now', { now: new Date() })
-      .execute();
+    const result = await this.prisma.processedEvent.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
 
-    if ((result.affected ?? 0) > 0) {
-      this.logger.log(`Cleaned ${result.affected} expired processed_events`);
+    if (result.count > 0) {
+      this.logger.log(`Cleaned ${result.count} expired processed_events`);
     }
   }
 }

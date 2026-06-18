@@ -1,13 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  HealthCheck,
-  HealthCheckResult,
-  HealthCheckService,
-  TypeOrmHealthIndicator,
-} from '@nestjs/terminus';
+import { HealthCheck, HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
 import { Public } from '../common/decorators/public.decorator';
 import { TenantRequired } from '../common/decorators/tenant-required.decorator';
+import { PrismaHealthIndicator } from '../prisma/prisma-health.indicator';
 import { RabbitmqService } from '../queue/rabbitmq.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -16,7 +12,7 @@ import { RedisService } from '../redis/redis.service';
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
-    private readonly db: TypeOrmHealthIndicator,
+    private readonly db: PrismaHealthIndicator,
     private readonly redis: RedisService,
     private readonly rabbitmq: RabbitmqService,
   ) {}
