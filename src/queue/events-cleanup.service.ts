@@ -36,6 +36,8 @@ export class EventsCleanupService {
 
     if (result.count > 0) {
       this.logger.log(`Cleaned ${result.count} outbox events older than ${cutoff.toISOString()}`);
+    } else {
+      this.logger.log('No outbox events cleaned');
     }
   }
 
@@ -46,6 +48,8 @@ export class EventsCleanupService {
 
     if (result.count > 0) {
       this.logger.log(`Cleaned ${result.count} expired processed_events`);
+    } else {
+      this.logger.log('No processed events cleaned');
     }
   }
 }
