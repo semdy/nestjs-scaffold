@@ -34,6 +34,7 @@ export const envValidationSchema = Joi.object({
   RABBITMQ_CONSUMER_ENABLED: Joi.boolean().default(true),
   RABBITMQ_DLQ_CONSUMER_ENABLED: Joi.boolean().default(true),
   RABBITMQ_PREFETCH: Joi.number().integer().positive().default(10),
+  RABBITMQ_DLQ_THRESHOLD: Joi.number().integer().min(0).default(0),
   SWAGGER_ENABLED: Joi.boolean().default(true),
   SWAGGER_PATH: Joi.string().default('docs'),
   OPENAPI_EXPORT: Joi.boolean().default(false),
