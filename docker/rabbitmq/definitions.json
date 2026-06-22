@@ -8,7 +8,7 @@
     {
       "name": "app",
       "password": "app",
-      "tags": ""
+      "tags": "management"
     }
   ],
   "permissions": [
