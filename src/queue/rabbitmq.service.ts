@@ -358,6 +358,26 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
     return (rawMessage.properties.headers?.['x-retry-count'] as number) ?? 0;
   }
 
+  /** 获取队列消息数和消费者数（-1 表示 channel 未连接） */
+  async getQueueStatus(
+    queueName: string,
+  ): Promise<{ messageCount: number; consumerCount: number }> {
+    if (!this.channel) {
+      return { messageCount: -1, consumerCount: -1 };
+    }
+    try {
+      const { messageCount, consumerCount } = await this.channel.assertQueue(queueName, {
+        durable: true,
+      });
+      return {
+        messageCount: messageCount ?? 0,
+        consumerCount: consumerCount ?? 0,
+      };
+    } catch {
+      return { messageCount: -1, consumerCount: -1 };
+    }
+  }
+
   async onApplicationShutdown(): Promise<void> {
     this.isShuttingDown = true;
     await this.channel?.close();
