@@ -366,9 +366,7 @@ export class RabbitmqService implements OnApplicationBootstrap, OnApplicationShu
       return { messageCount: -1, consumerCount: -1 };
     }
     try {
-      const { messageCount, consumerCount } = await this.channel.assertQueue(queueName, {
-        durable: true,
-      });
+      const { messageCount, consumerCount } = await this.channel.checkQueue(queueName);
       return {
         messageCount: messageCount ?? 0,
         consumerCount: consumerCount ?? 0,
