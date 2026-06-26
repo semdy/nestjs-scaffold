@@ -1,7 +1,10 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { UserAwareThrottlerGuard } from './common/guards/user-aware-throttler.guard';
+import { RedisThrottlerStorage } from './redis/redis-throttler-storage';
+import { RedisService } from './redis/redis.service';
 import { ValidationPipe } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -31,13 +34,16 @@ import { AppController } from './app.controller';
       load: [appConfig],
     }),
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => [
-        {
-          ttl: configService.get<number>('RATE_LIMIT_TTL', 60000),
-          limit: configService.get<number>('RATE_LIMIT_LIMIT', 120),
-        },
-      ],
+      inject: [ConfigService, RedisService],
+      useFactory: (configService: ConfigService, redis: RedisService) => ({
+        throttlers: [
+          {
+            ttl: configService.get<number>('RATE_LIMIT_TTL', 60000),
+            limit: configService.get<number>('RATE_LIMIT_LIMIT', 120),
+          },
+        ],
+        storage: new RedisThrottlerStorage(redis),
+      }),
     }),
     PrismaModule,
     TenancyModule,
@@ -52,7 +58,7 @@ import { AppController } from './app.controller';
     { provide: APP_PIPE, useValue: new ValidationPipe({ whitelist: true, transform: true }) },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseEnvelopeInterceptor },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: UserAwareThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
