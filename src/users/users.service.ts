@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
 
 import { Prisma } from '../generated/prisma/client';
+import { UserRole } from '../common/constants';
 import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
 import { RedisService } from '../redis/redis.service';
 import { LAST_LOGOUT_PREFIX } from '../common/constants';
@@ -21,7 +22,7 @@ export class UsersService {
     private readonly redis: RedisService,
   ) {}
 
-  async create(dto: CreateUserDto) {
+  async create(dto: Omit<CreateUserDto, 'role'> & { role?: UserRole }) {
     const tenantId = this.tenancyContext.requireTenantId();
     const email = dto.email.toLowerCase();
     const exists = await this.prisma.user.findFirst({

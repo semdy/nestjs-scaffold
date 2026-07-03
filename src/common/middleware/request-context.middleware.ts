@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { TenancyContext } from '../../tenancy/tenancy-context.service';
 import { TenancyService } from '../../tenancy/tenancy.service';
+import { HttpRequestContext } from '../interfaces/http-request.interface';
 
 const SKIP_SUBDOMAINS = new Set(['api', 'www', 'app', 'admin']);
 
@@ -16,7 +17,7 @@ export class RequestContextMiddleware implements NestMiddleware {
   ) {}
 
   async use(
-    req: IncomingMessage & { requestId?: string; tenantId?: string },
+    req: IncomingMessage & HttpRequestContext,
     res: ServerResponse & { setHeader?: (name: string, value: string) => void },
     next: () => void,
   ): Promise<void> {

@@ -6,7 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('adminQueue')
 @Controller('admin/queue')
-@Roles('admin')
+@Roles('system_admin')
 export class QueueAdminController {
   constructor(private readonly dlqConsumer: DlqConsumerService) {}
 

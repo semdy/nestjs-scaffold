@@ -2,6 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { UserRole } from '../../common/constants';
 
+type TenantAssignableRole = Exclude<UserRole, 'system_admin'>;
+
 export class CreateUserDto {
   @ApiProperty({ example: 'ada@example.com' })
   @IsEmail()
@@ -20,5 +22,5 @@ export class CreateUserDto {
   @ApiProperty({ enum: ['admin', 'member', 'viewer'], required: false })
   @IsOptional()
   @IsIn(['admin', 'member', 'viewer'])
-  role?: UserRole;
+  role?: TenantAssignableRole;
 }

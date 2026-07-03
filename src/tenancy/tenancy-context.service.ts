@@ -22,6 +22,13 @@ export class TenancyContext {
     return tenantStore.getStore()?.requestId;
   }
 
+  setTenantId(tenantId: string): void {
+    const store = tenantStore.getStore();
+    if (store) {
+      store.tenantId = tenantId;
+    }
+  }
+
   requireTenantId(): string {
     const tenantId = this.tenantId;
     if (!tenantId) {

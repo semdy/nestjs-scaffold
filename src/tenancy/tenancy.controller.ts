@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { TenantRequired } from '../common/decorators/tenant-required.decorator';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -8,7 +9,8 @@ import { TenancyService } from './tenancy.service';
 
 @ApiTags('tenants')
 @Controller('tenants')
-@Roles('admin')
+@Roles('system_admin')
+@TenantRequired(false)
 export class TenancyController {
   constructor(private readonly tenancyService: TenancyService) {}
 

@@ -29,7 +29,7 @@ describe('AppController', () => {
       .get('/')
       .expect(200)
       .expect(({ body }: { body: AppMetadataResponse }) => {
-        expect(body.name).toBe('nestjs-production-scaffold');
+        expect(body.name).toBe('nestjs-scaffold');
       });
   });
 });
