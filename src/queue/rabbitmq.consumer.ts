@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { USER_CREATED_ROUTING_KEY, UserCreatedEvent } from './events/user-created.event';
 import { UserCreatedHandler } from './handlers/user-created.handler';
 import { QueueEnvelope, RabbitmqService } from './rabbitmq.service';
@@ -33,14 +33,60 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
 
   private async dispatch(message: QueueEnvelope): Promise<void> {
     // 第一道：Redis 快速去重
-    if (await this.idempotencyService.isDuplicate(message.eventId, message.routingKey)) {
+    if (await this.idempotencyService.isProcessed(message.eventId, message.routingKey)) {
       this.logger.warn(
         `Duplicate event skipped: eventId=${message.eventId}, routingKey=${message.routingKey}`,
       );
       return;
     }
 
-    // 第二道：事务内数据库去重，尝试插入去重记录，eventId 是主键，重复插入会抛唯一约束异常
+    // 第二道：事务内数据库去重
+    const processed = await this.processedEventRepo.findOne({
+      where: { eventId: message.eventId },
+      select: ['eventId'],
+    });
+
+    if (processed) {
+      // 更新至redis
+      await this.idempotencyService.markProcessed(message.eventId, message.routingKey);
+      this.logger.warn(
+        `Duplicate event skipped by DB: eventId=${message.eventId}, routingKey=${message.routingKey}`,
+      );
+      return;
+    }
+
+    const lockAcquired = await this.idempotencyService.acquireProcessingLock(
+      message.eventId,
+      message.routingKey,
+    );
+
+    if (!lockAcquired) {
+      this.logger.warn(
+        `Event is already being processed: eventId=${message.eventId}, routingKey=${message.routingKey}`,
+      );
+      throw new SkipMessageError();
+    }
+
+    try {
+      switch (message.routingKey) {
+        case USER_CREATED_ROUTING_KEY:
+          await this.userCreatedHandler.handle({
+            ...message,
+            payload: this.parseUserCreatedPayload(message.payload),
+          });
+          break;
+        default:
+          this.logger.warn(`No handler registered for routingKey=${message.routingKey}`);
+      }
+
+      await this.markProcessed(message);
+    } catch (error) {
+      await this.idempotencyService.releaseProcessingLock(message.eventId, message.routingKey);
+      throw error;
+    }
+  }
+
+  private async markProcessed(message: QueueEnvelope): Promise<void> {
     try {
       await this.processedEventRepo.insert({
         eventId: message.eventId,
@@ -48,25 +94,17 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
         processedAt: new Date(),
         expiresAt: new Date(Date.now() + 7 * 86400_000), // 7天
       });
-    } catch (err: any) {
+      await this.idempotencyService.markProcessed(message.eventId, message.routingKey);
+      await this.idempotencyService.releaseProcessingLock(message.eventId, message.routingKey);
+    } catch (error) {
       // 唯一约束冲突 = 已处理过，安全跳过
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (err.code === '23505') {
-        this.logger.error(`DB dedup: event ${message.eventId} already processed, skipping!`);
+      if (this.isProcessedEventConflict(error)) {
+        this.logger.warn(`DB dedup: event ${message.eventId} already processed, skipping`);
+        await this.idempotencyService.markProcessed(message.eventId, message.routingKey);
+        await this.idempotencyService.releaseProcessingLock(message.eventId, message.routingKey);
         throw new SkipMessageError(); // 自定义错误，上层 catch 做 ack
       }
-      throw err; // 其他错误正常抛，触发重试
-    }
-
-    switch (message.routingKey) {
-      case USER_CREATED_ROUTING_KEY:
-        await this.userCreatedHandler.handle({
-          ...message,
-          payload: this.parseUserCreatedPayload(message.payload),
-        });
-        return;
-      default:
-        this.logger.warn(`No handler registered for routingKey=${message.routingKey}`);
+      throw error; // 其他错误正常抛，触发重试
     }
   }
 
@@ -83,5 +121,18 @@ export class RabbitmqConsumer implements OnApplicationBootstrap {
     }
 
     return { userId, tenantId, email, occurredAt };
+  }
+
+  private isProcessedEventConflict(error: unknown): boolean {
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+
+    const driverError = error.driverError as {
+      code?: string;
+      errno?: number;
+    };
+
+    return driverError.code === '23505' || driverError.errno === 1062;
   }
 }

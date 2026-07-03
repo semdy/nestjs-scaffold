@@ -6,12 +6,7 @@ import { AuthRequestMeta, AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-
-interface RequestMetaSource {
-  ip?: string;
-  headers: Record<string, string | string[] | undefined>;
-  socket?: { remoteAddress?: string };
-}
+import { HttpRequestContext } from '../common/interfaces/http-request.interface';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -21,7 +16,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
-  async login(@Body() dto: LoginDto, @Req() request: RequestMetaSource): Promise<AuthResponseDto> {
+  async login(@Body() dto: LoginDto, @Req() request: HttpRequestContext): Promise<AuthResponseDto> {
     return this.authService.login(dto, this.getRequestMeta(request));
   }
 
@@ -29,7 +24,7 @@ export class AuthController {
   @Public()
   async refresh(
     @Body() dto: RefreshTokenDto,
-    @Req() request: RequestMetaSource,
+    @Req() request: HttpRequestContext,
   ): Promise<AuthResponseDto> {
     return this.authService.refresh(dto, this.getRequestMeta(request));
   }
@@ -41,7 +36,7 @@ export class AuthController {
     return { revoked: true };
   }
 
-  private getRequestMeta(request: RequestMetaSource): AuthRequestMeta {
+  private getRequestMeta(request: HttpRequestContext): AuthRequestMeta {
     const forwardedFor = request.headers['x-forwarded-for'];
     return {
       ipAddress:

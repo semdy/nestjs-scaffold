@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return */
 import { ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
@@ -7,6 +8,7 @@ import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
 import { OutboxEvent } from '../queue/outbox-event.entity';
 import { TenancyContext } from '../tenancy/tenancy-context.service';
+import { RedisService } from '../redis/redis.service';
 import { User } from './user.entity';
 import { UsersService } from './users.service';
 
@@ -16,6 +18,7 @@ describe('UsersService', () => {
   let dataSource: { transaction: jest.Mock };
   let tenancyContext: { requireTenantId: jest.Mock };
   let configService: { get: jest.Mock };
+  let redis: { set: jest.Mock };
 
   beforeEach(async () => {
     usersRepository = {
@@ -35,6 +38,7 @@ describe('UsersService', () => {
         return defaultValue;
       }),
     };
+    redis = { set: jest.fn() };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -43,6 +47,7 @@ describe('UsersService', () => {
         { provide: DataSource, useValue: dataSource },
         { provide: TenancyContext, useValue: tenancyContext },
         { provide: ConfigService, useValue: configService },
+        { provide: RedisService, useValue: redis },
       ],
     }).compile();
 
@@ -74,18 +79,19 @@ describe('UsersService', () => {
       save: jest.fn().mockResolvedValue(undefined),
     };
 
-    dataSource.transaction.mockImplementation(async (callback: (manager: unknown) => Promise<User>) =>
-      callback({
-        getRepository: jest.fn((entity) => {
-          if (entity === User) {
-            return txUsersRepository;
-          }
-          if (entity === OutboxEvent) {
-            return txOutboxRepository;
-          }
-          throw new Error(`Unexpected repository: ${String(entity)}`);
+    dataSource.transaction.mockImplementation(
+      async (callback: (manager: unknown) => Promise<User>) =>
+        callback({
+          getRepository: jest.fn((entity) => {
+            if (entity === User) {
+              return txUsersRepository;
+            }
+            if (entity === OutboxEvent) {
+              return txOutboxRepository;
+            }
+            throw new Error(`Unexpected repository: ${String(entity)}`);
+          }),
         }),
-      }),
     );
 
     const result = await service.create({

@@ -1,26 +1,42 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
 
 const IDEMPOTENCY_PREFIX = 'event:processed:';
+const PROCESSING_PREFIX = 'event:processing:';
 const DEFAULT_TTL_SECONDS = 86400 * 7; // 7天
+const PROCESSING_TTL_SECONDS = 300; // 单条消息最长处理窗口
 
 @Injectable()
 export class IdempotencyService {
-  private readonly logger = new Logger(IdempotencyService.name);
-
   constructor(private readonly redisService: RedisService) {}
 
-  /**
-   * 检查并标记事件是否已处理。
-   * 返回 true = 重复消息，应跳过；false = 首次处理
-   */
-  async isDuplicate(eventId: string, routingKey: string): Promise<boolean> {
-    const key = `${IDEMPOTENCY_PREFIX}${routingKey}:${eventId}`;
-    // SET NX：仅在 key 不存在时设置成功
-    const isNew = await this.redisService.set(key, '1', {
+  async isProcessed(eventId: string, routingKey: string): Promise<boolean> {
+    return this.redisService.exists(this.processedKey(eventId, routingKey));
+  }
+
+  async markProcessed(eventId: string, routingKey: string): Promise<void> {
+    await this.redisService.set(this.processedKey(eventId, routingKey), '1', {
       ttlSeconds: DEFAULT_TTL_SECONDS,
+    });
+  }
+
+  async acquireProcessingLock(eventId: string, routingKey: string): Promise<boolean> {
+    // SET NX：仅在 key 不存在时设置成功
+    return this.redisService.set(this.processingKey(eventId, routingKey), '1', {
+      ttlSeconds: PROCESSING_TTL_SECONDS,
       nx: true,
     });
-    return !isNew; // set 返回 false 说明 key 已存在 → 重复
+  }
+
+  async releaseProcessingLock(eventId: string, routingKey: string): Promise<void> {
+    await this.redisService.delete(this.processingKey(eventId, routingKey));
+  }
+
+  private processedKey(eventId: string, routingKey: string): string {
+    return `${IDEMPOTENCY_PREFIX}${routingKey}:${eventId}`;
+  }
+
+  private processingKey(eventId: string, routingKey: string): string {
+    return `${PROCESSING_PREFIX}${routingKey}:${eventId}`;
   }
 }

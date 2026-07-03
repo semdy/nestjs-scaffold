@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcrypt';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { UserRole } from '../common/constants';
 import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
 import { OutboxEvent } from '../queue/outbox-event.entity';
 import { RedisService } from '../redis/redis.service';
@@ -23,7 +24,7 @@ export class UsersService {
     private readonly redis: RedisService,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: Omit<CreateUserDto, 'role'> & { role?: UserRole }): Promise<User> {
     const tenantId = this.tenancyContext.requireTenantId();
     const email = dto.email.toLowerCase();
     const exists = await this.users.exists({ where: { tenantId, email } });

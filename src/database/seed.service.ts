@@ -38,9 +38,9 @@ export class SeedService implements OnApplicationBootstrap {
 
       await this.usersService.create({
         email,
-        name: 'Default Admin',
+        name: 'Default System Admin',
         password,
-        role: 'admin',
+        role: 'system_admin',
       });
       this.logger.log(`Seeded admin user ${email} for tenant ${tenant.id}`);
     });

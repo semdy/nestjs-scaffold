@@ -43,13 +43,14 @@ http://localhost:3000/api/health
 tenant slug: default
 email: admin@example.com
 password: change-me-123
+role: system_admin
 ```
 
-启动日志会输出默认租户 ID。调用受保护接口时需要：
+启动日志会输出默认租户 ID。登录后，受保护接口会优先使用 JWT 中的 `tenantId` 作为租户上下文。`x-tenant-id` 可以继续传，但只用于和 JWT 交叉校验：
 
 ```text
 Authorization: Bearer <accessToken>
-x-tenant-id: <tenantId>
+x-tenant-id: <tenantId> # optional after login; must match JWT tenantId when present
 ```
 
 登录接口:
@@ -158,6 +159,8 @@ src/
 所有实体主键默认继承 `UuidV7Entity`，使用应用层生成的 UUID v7，兼顾分布式 ID 与索引写入局部性。所有租户隔离实体继承 `TenantScopedEntity` 并带 `tenantId` 字段。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并显式加入 `where` 条件。全局 `TenantGuard` 会拒绝缺失租户头或 token 租户与请求租户不一致的请求。
 
 ## 索引约定
+
+租户管理接口属于平台级能力，只允许 `system_admin` 访问；普通租户 `admin` 只能管理当前租户下的用户。
 
 当前初始 schema 已包含基础索引：
 

@@ -15,7 +15,7 @@ export class UserResponseDto {
   @ApiProperty()
   name: string;
 
-  @ApiProperty({ enum: ['admin', 'member', 'viewer'] })
+  @ApiProperty({ enum: ['system_admin', 'admin', 'member', 'viewer'] })
   role: UserRole;
 
   @ApiProperty()
