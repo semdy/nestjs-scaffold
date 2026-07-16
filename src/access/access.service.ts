@@ -39,7 +39,7 @@ export class AccessService {
             builtIn: true,
             tenantId: true,
             permissions: {
-              where: { permission: { enabled: true } },
+              where: { enabled: true, permission: { enabled: true } },
               select: { permission: { select: { code: true } } },
             },
           },

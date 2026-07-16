@@ -94,8 +94,9 @@ model Permission {
 }
 
 model RolePermission {
-  roleId       String @db.VarChar(36)
-  permissionId String @db.VarChar(36)
+  roleId       String  @db.VarChar(36)
+  permissionId String  @db.VarChar(36)
+  enabled      Boolean @default(true)
 
   role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)

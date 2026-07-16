@@ -139,7 +139,8 @@ Prisma schema 以 `prisma/schema.prisma`（PostgreSQL）为唯一源，MySQL 版
 npm run prisma:schema:mysql
 ```
 
-修改模型后只需编辑 `schema.prisma`，然后运行上述命令即可同步 `schema-mysql.prisma`。
+修改模型后只需编辑 `prisma/schema.prisma`，然后运行上述命令即可同步
+`prisma-mysql/schema.prisma`。
 
 本地启动 MySQL（含 migration 和 Debezium CDC）：
 
@@ -191,8 +192,10 @@ src/
 并在每个租户拥有多个角色。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并
 显式加入租户条件。全局 `TenantGuard` 会交叉校验 header 与 JWT 中的 `tenantId`。
 
-内置角色为 `system_admin`、`admin`、`member`、`viewer`，不可修改、删除或更改权限；自定义
-角色严格绑定当前租户。控制器可以同时使用 `@Roles(...)` 和 `@Permissions(...)`：单独声明时
+内置角色为全局共享的 `system_admin`、`admin`、`member`、`viewer`，角色定义不可修改或删除；
+`system_admin` 始终拥有全部启用权限，其权限不可关闭。全局内置 `admin`、`member`、`viewer`
+的权限只能由 `system_admin` 配置，修改后对所有租户生效；自定义角色严格绑定当前租户。
+控制器可以同时使用 `@Roles(...)` 和 `@Permissions(...)`：单独声明时
 分别按角色或权限检查，同时声明时必须两项都通过。守卫从数据库/Redis 加载用户在当前租户
 的访问范围；角色、角色权限、用户角色或权限发生变化后会自动删除相关缓存，下一次请求从
 数据库重建。
@@ -204,6 +207,16 @@ src/
 权限码是由 `PermissionCode` 和路由装饰器共同定义的代码契约，权限模块只提供只读字典，
 不支持运行时新增、修改或删除。新增权限必须随代码版本发布，并由启动种子同步到数据库；
 同步完成后会清空访问缓存。租户的自定义能力通过“自定义角色 + 静态权限组合”实现。
+
+`GET /api/roles/:id/permissions` 返回全局全部启用权限，并通过 `granted` 表示该角色是否拥有、
+`configurable` 表示当前操作者能否切换。`PATCH /api/roles/:id/permissions/:permissionId` 用于
+单个开关，`PUT /api/roles/:id/permissions` 接收完整的已启用权限 ID 集合用于批量配置。角色权限
+修改后立即清理对应租户缓存；全局内置角色修改后清理全部访问缓存。登录、刷新 token 和切换
+租户均通过同一访问范围解析逻辑返回最新的 `roles`、`permissions`。
+
+服务层保留 `system_admin`、`admin`、`member`、`viewer` 这些鉴权用角色 `code`：自定义角色
+不能使用这些 code。展示字段 `name` 不作为保留值，可按产品语言自由命名。项目按全新数据库
+初始化，migration 完全由最终 Prisma schema 生成；内置角色和权限数据由 Seed 同步。
 
 租户管理权限只授予 `system_admin`；普通租户 `admin` 只能管理当前租户的用户与角色。
 
@@ -244,7 +257,7 @@ npm run prisma:studio            # 可视化数据库浏览器
 项目使用 Prisma Migrate 管理表结构。Schema 文件位于：
 
 - PostgreSQL：`prisma/schema.prisma`
-- MySQL：`prisma/schema-mysql.prisma`
+- MySQL：`prisma-mysql/schema.prisma`
 
 Migration 文件分别存放在 `prisma/migrations/`（PostgreSQL）和 `prisma/migrations-mysql/`（MySQL）。`prisma.config.ts` 根据 `DB_TYPE` 自动选择对应的 schema 和 migration 目录。
 

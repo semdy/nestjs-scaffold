@@ -58,6 +58,7 @@ export class SeedService implements OnApplicationBootstrap {
   }
 
   private async seedAccessModel(): Promise<void> {
+    const permissionCodes = BUILT_IN_PERMISSIONS.map(({ code }) => code);
     for (const permission of BUILT_IN_PERMISSIONS) {
       await this.prisma.permission.upsert({
         where: { code: permission.code },
@@ -65,6 +66,9 @@ export class SeedService implements OnApplicationBootstrap {
         update: { name: permission.name, enabled: true },
       });
     }
+    await this.prisma.permission.deleteMany({
+      where: { code: { notIn: [...permissionCodes] } },
+    });
     const definitions = [
       { code: 'system_admin', name: 'System Administrator' },
       { code: 'admin', name: 'Tenant Administrator' },
@@ -75,7 +79,12 @@ export class SeedService implements OnApplicationBootstrap {
       const existing = await this.prisma.role.findFirst({
         where: { tenantId: null, code: definition.code },
       });
-      if (!existing) {
+      if (existing) {
+        await this.prisma.role.update({
+          where: { id: existing.id },
+          data: { name: definition.name, builtIn: true, enabled: true },
+        });
+      } else {
         await this.prisma.role.create({ data: { ...definition, builtIn: true } });
       }
     }
@@ -90,13 +99,10 @@ export class SeedService implements OnApplicationBootstrap {
       ['admin', adminIds],
     ] as const) {
       const role = await this.prisma.role.findFirstOrThrow({ where: { tenantId: null, code } });
-      await this.prisma.$transaction([
-        this.prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
-        this.prisma.rolePermission.createMany({
-          data: ids.map((permissionId) => ({ roleId: role.id, permissionId })),
-          skipDuplicates: true,
-        }),
-      ]);
+      await this.prisma.rolePermission.createMany({
+        data: ids.map((permissionId) => ({ roleId: role.id, permissionId, enabled: true })),
+        skipDuplicates: true,
+      });
     }
   }
 }

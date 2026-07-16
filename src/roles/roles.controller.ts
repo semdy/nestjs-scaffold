@@ -7,6 +7,7 @@ import { PermissionCode } from '../common/constants';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { SetRolePermissionsDto } from './dto/set-role-permissions.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { ToggleRolePermissionDto } from './dto/toggle-role-permission.dto';
 import { RolesService } from './roles.service';
 
 @ApiTags('roles')
@@ -24,6 +25,12 @@ export class RolesController {
   @Permissions(PermissionCode.RoleRead)
   findOne(@Param('id') id: string) {
     return this.rolesService.findOne(id);
+  }
+
+  @Get(':id/permissions')
+  @Permissions(PermissionCode.PermissionRead)
+  getPermissionMatrix(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.rolesService.getPermissionMatrix(id, user.sub);
   }
 
   @Post()
@@ -46,6 +53,17 @@ export class RolesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.rolesService.setPermissions(id, dto.permissionIds, user.sub);
+  }
+
+  @Patch(':id/permissions/:permissionId')
+  @Permissions(PermissionCode.RoleAssignPermissions)
+  setPermission(
+    @Param('id') id: string,
+    @Param('permissionId') permissionId: string,
+    @Body() dto: ToggleRolePermissionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.rolesService.setPermission(id, permissionId, dto.enabled, user.sub);
   }
 
   @Delete(':id')
