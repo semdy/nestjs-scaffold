@@ -15,7 +15,7 @@ import { TenancyService } from '../tenancy/tenancy.service';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 import { UsersService } from '../users/users.service';
 import { AuthenticatedUser } from './authenticated-user.interface';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { AuthResponseDto, AuthTenantDto } from './dto/auth-response.dto';
 import { EmailCodeLoginDto, PhoneCodeLoginDto } from './dto/code-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -67,7 +67,10 @@ export class AuthService {
     return this.issueAuthResponse(user, tenantId, meta);
   }
 
-  async loginByEmailCode(dto: EmailCodeLoginDto, meta: AuthRequestMeta = {}) {
+  async loginByEmailCode(
+    dto: EmailCodeLoginDto,
+    meta: AuthRequestMeta = {},
+  ): Promise<AuthResponseDto> {
     const email = dto.email.toLowerCase().trim();
     await this.verificationCodes.consume('email', email, dto.code);
     let user = await this.prisma.user.findUnique({ where: { email } });
@@ -77,7 +80,10 @@ export class AuthService {
     return this.issueAuthResponse(user, tenantId, meta);
   }
 
-  async loginByPhoneCode(dto: PhoneCodeLoginDto, meta: AuthRequestMeta = {}) {
+  async loginByPhoneCode(
+    dto: PhoneCodeLoginDto,
+    meta: AuthRequestMeta = {},
+  ): Promise<AuthResponseDto> {
     const phone = dto.phone.replace(/\s/g, '');
     const target = `${dto.countryCode}${phone}`;
     await this.verificationCodes.consume('phone', target, dto.code);
@@ -104,6 +110,15 @@ export class AuthService {
 
   async myAccess(userId: string, tenantId: string) {
     return this.accessService.getUserAccess(userId, tenantId);
+  }
+
+  async myTenants(userId: string): Promise<AuthTenantDto[]> {
+    const memberships = await this.prisma.tenantMembership.findMany({
+      where: { userId, active: true, tenant: { active: true } },
+      select: { tenant: { select: { id: true, slug: true, name: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return memberships.map(({ tenant }) => tenant);
   }
 
   async refresh(dto: RefreshTokenDto, meta: AuthRequestMeta = {}): Promise<AuthResponseDto> {
@@ -206,7 +221,10 @@ export class AuthService {
   }
 
   private async issueAuthResponse(user: AuthUser, tenantId: string, meta: AuthRequestMeta) {
-    const access = await this.accessService.getUserAccess(user.id, tenantId);
+    const [access, tenants] = await Promise.all([
+      this.accessService.getUserAccess(user.id, tenantId),
+      this.myTenants(user.id),
+    ]);
     const { plainToken: refreshToken } = await this.createRefreshToken(user.id, tenantId, meta);
     return {
       accessToken: await this.createAccessToken(user, tenantId),
@@ -215,6 +233,8 @@ export class AuthService {
         ...user,
         roleAssignments: access.roles.map((code) => ({ role: { code } })),
       }),
+      currentTenantId: tenantId,
+      tenants,
       roles: access.roles,
       permissions: access.permissions,
     };

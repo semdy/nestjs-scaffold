@@ -241,7 +241,193 @@
         },
         "responses": {
           "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login/email-code": {
+      "post": {
+        "operationId": "AuthController_loginByEmailCode_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCodeLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login/phone-code": {
+      "post": {
+        "operationId": "AuthController_loginByPhoneCode_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneCodeLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verification/email": {
+      "post": {
+        "operationId": "AuthController_sendEmailCode_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEmailCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verification/phone": {
+      "post": {
+        "operationId": "AuthController_sendPhoneCode_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendPhoneCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/switch-tenant": {
+      "post": {
+        "operationId": "AuthController_switchTenant_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/my-access": {
+      "get": {
+        "operationId": "AuthController_myAccess_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/my-tenants": {
+      "get": {
+        "operationId": "AuthController_myTenants_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthTenantDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -265,7 +451,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -427,6 +620,259 @@
         "summary": "Delete user",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/roles": {
+      "patch": {
+        "operationId": "UsersController_setRoles_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserRolesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/roles": {
+      "get": {
+        "operationId": "RolesController_findAll_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      },
+      "post": {
+        "operationId": "RolesController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      }
+    },
+    "/api/v1/roles/{id}": {
+      "get": {
+        "operationId": "RolesController_findOne_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      },
+      "patch": {
+        "operationId": "RolesController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      },
+      "delete": {
+        "operationId": "RolesController_remove_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      }
+    },
+    "/api/v1/roles/{id}/permissions": {
+      "get": {
+        "operationId": "RolesController_getPermissionMatrix_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      },
+      "put": {
+        "operationId": "RolesController_setPermissions_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRolePermissionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      }
+    },
+    "/api/v1/roles/{id}/permissions/{permissionId}": {
+      "patch": {
+        "operationId": "RolesController_setPermission_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "permissionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleRolePermissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "roles"
+        ]
+      }
+    },
+    "/api/v1/permissions": {
+      "get": {
+        "operationId": "PermissionsController_findAll_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "permissions"
         ]
       }
     },
@@ -708,6 +1154,193 @@
           "password"
         ]
       },
+      "UserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active",
+          "roles",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AuthTenantDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ]
+      },
+      "AuthResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponseDto"
+          },
+          "currentTenantId": {
+            "type": "string"
+          },
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthTenantDto"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user",
+          "currentTenantId",
+          "tenants",
+          "roles",
+          "permissions"
+        ]
+      },
+      "EmailCodeLoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "tenantSlug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ]
+      },
+      "PhoneCodeLoginDto": {
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": "string",
+            "example": "+86"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "tenantSlug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "countryCode",
+          "phone",
+          "code"
+        ]
+      },
+      "SendEmailCodeDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "SendPhoneCodeDto": {
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": "string",
+            "example": "+86"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "countryCode",
+          "phone"
+        ]
+      },
+      "SwitchTenantDto": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenantId"
+        ]
+      },
       "RefreshTokenDto": {
         "type": "object",
         "properties": {
@@ -736,13 +1369,12 @@
             "maxLength": 128,
             "example": "change-me-123"
           },
-          "role": {
-            "type": "string",
-            "enum": [
-              "admin",
-              "member",
-              "viewer"
-            ]
+          "roleIds": {
+            "description": "Role IDs in the current tenant",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -766,61 +1398,91 @@
             "type": "string",
             "minLength": 8,
             "maxLength": 128
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "admin",
-              "member",
-              "viewer"
-            ]
           }
         }
       },
-      "UserResponseDto": {
+      "SetUserRolesDto": {
         "type": "object",
         "properties": {
-          "id": {
+          "roleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "roleIds"
+        ]
+      },
+      "CreateRoleDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "editor"
+          },
+          "name": {
+            "type": "string",
+            "example": "Editor"
+          },
+          "description": {
             "type": "string"
           },
-          "tenantId": {
-            "type": "string"
-          },
-          "email": {
+          "permissionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "UpdateRoleDto": {
+        "type": "object",
+        "properties": {
+          "code": {
             "type": "string"
           },
           "name": {
             "type": "string"
           },
-          "role": {
-            "type": "string",
-            "enum": [
-              "admin",
-              "member",
-              "viewer"
-            ]
+          "description": {
+            "type": "string"
           },
-          "active": {
+          "enabled": {
             "type": "boolean"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string"
+          }
+        }
+      },
+      "SetRolePermissionsDto": {
+        "type": "object",
+        "properties": {
+          "permissionIds": {
+            "description": "Complete set of enabled permission IDs; omitted permissions are switched off",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
-          "id",
-          "tenantId",
-          "email",
-          "name",
-          "role",
-          "active",
-          "createdAt",
-          "updatedAt"
+          "permissionIds"
+        ]
+      },
+      "ToggleRolePermissionDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this permission is granted to the role"
+          }
+        },
+        "required": [
+          "enabled"
         ]
       }
     }

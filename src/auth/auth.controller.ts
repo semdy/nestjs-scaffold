@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { TenantRequired } from '../common/decorators/tenant-required.decorator';
 import { AuthRequestMeta, AuthService } from './auth.service';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { AuthResponseDto, AuthTenantDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { HttpRequestContext } from '../common/interfaces/http-request.interface';
@@ -29,19 +29,28 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @ApiResponse({ status: 201, type: AuthResponseDto })
   async login(@Body() dto: LoginDto, @Req() request: HttpRequestContext): Promise<AuthResponseDto> {
     return this.authService.login(dto, this.getRequestMeta(request));
   }
 
   @Post('login/email-code')
   @Public()
-  loginByEmailCode(@Body() dto: EmailCodeLoginDto, @Req() request: HttpRequestContext) {
+  @ApiResponse({ status: 201, type: AuthResponseDto })
+  loginByEmailCode(
+    @Body() dto: EmailCodeLoginDto,
+    @Req() request: HttpRequestContext,
+  ): Promise<AuthResponseDto> {
     return this.authService.loginByEmailCode(dto, this.getRequestMeta(request));
   }
 
   @Post('login/phone-code')
   @Public()
-  loginByPhoneCode(@Body() dto: PhoneCodeLoginDto, @Req() request: HttpRequestContext) {
+  @ApiResponse({ status: 201, type: AuthResponseDto })
+  loginByPhoneCode(
+    @Body() dto: PhoneCodeLoginDto,
+    @Req() request: HttpRequestContext,
+  ): Promise<AuthResponseDto> {
     return this.authService.loginByPhoneCode(dto, this.getRequestMeta(request));
   }
 
@@ -60,11 +69,12 @@ export class AuthController {
   }
 
   @Post('switch-tenant')
+  @ApiResponse({ status: 201, type: AuthResponseDto })
   async switchTenant(
     @Body() dto: SwitchTenantDto,
     @CurrentUser() user: AuthenticatedUser,
     @Req() request: HttpRequestContext,
-  ) {
+  ): Promise<AuthResponseDto> {
     return this.authService.switchTenant(user.sub, dto.tenantId, this.getRequestMeta(request));
   }
 
@@ -73,8 +83,15 @@ export class AuthController {
     return this.authService.myAccess(user.sub, user.tenantId);
   }
 
+  @Get('my-tenants')
+  @ApiResponse({ status: 200, type: [AuthTenantDto] })
+  myTenants(@CurrentUser() user: AuthenticatedUser): Promise<AuthTenantDto[]> {
+    return this.authService.myTenants(user.sub);
+  }
+
   @Post('refresh')
   @Public()
+  @ApiResponse({ status: 201, type: AuthResponseDto })
   async refresh(
     @Body() dto: RefreshTokenDto,
     @Req() request: HttpRequestContext,

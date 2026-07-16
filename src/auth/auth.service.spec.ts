@@ -37,3 +37,35 @@ describe('AuthService verification-code login', () => {
     expect(verificationCodes.consume).toHaveBeenCalledWith('phone', '+8613800138000', '123456');
   });
 });
+
+describe('AuthService tenant list', () => {
+  it('returns only active memberships of active tenants', async () => {
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        { tenant: { id: 'tenant-1', slug: 'first', name: 'First tenant' } },
+        { tenant: { id: 'tenant-2', slug: 'second', name: 'Second tenant' } },
+      ]);
+    const service = new AuthService(
+      { tenantMembership: { findMany } } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.myTenants('user-1')).resolves.toEqual([
+      { id: 'tenant-1', slug: 'first', name: 'First tenant' },
+      { id: 'tenant-2', slug: 'second', name: 'Second tenant' },
+    ]);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', active: true, tenant: { active: true } },
+      select: { tenant: { select: { id: true, slug: true, name: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  });
+});
