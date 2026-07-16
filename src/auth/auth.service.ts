@@ -71,6 +71,7 @@ export class AuthService {
     const email = dto.email.toLowerCase().trim();
     await this.verificationCodes.consume('email', email, dto.code);
     let user = await this.prisma.user.findUnique({ where: { email } });
+    if (user && !user.active) throw new ForbiddenException('User is disabled');
     if (!user) user = await this.registerVerifiedUser({ email, name: email });
     const tenantId = await this.resolveUserTenant(user.id, dto.tenantSlug);
     return this.issueAuthResponse(user, tenantId, meta);
@@ -83,6 +84,7 @@ export class AuthService {
     let user = await this.prisma.user.findUnique({
       where: { countryCode_phone: { countryCode: dto.countryCode, phone } },
     });
+    if (user && !user.active) throw new ForbiddenException('User is disabled');
     if (!user)
       user = await this.registerVerifiedUser({ phone, countryCode: dto.countryCode, name: target });
     const tenantId = await this.resolveUserTenant(user.id, dto.tenantSlug);
@@ -159,6 +161,7 @@ export class AuthService {
     name: string;
   }) {
     const tenant = await this.tenancyService.bootstrapDefaultTenant();
+    if (!tenant.active) throw new ForbiddenException('Default tenant is disabled');
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({ data: input });
       await tx.tenantMembership.create({ data: { userId: user.id, tenantId: tenant.id } });
