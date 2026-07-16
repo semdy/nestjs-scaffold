@@ -1,6 +1,9 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
+COPY prisma.config.ts ./
+COPY prisma/schema.prisma ./prisma/schema.prisma
+COPY prisma-mysql/schema.prisma ./prisma-mysql/schema.prisma
 RUN npm ci
 
 FROM node:22-alpine AS build
@@ -17,6 +20,7 @@ COPY --from=build --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=build --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=nestjs:nodejs /app/package*.json ./
 COPY --from=build --chown=nestjs:nodejs /app/prisma ./prisma
+COPY --from=build --chown=nestjs:nodejs /app/prisma-mysql ./prisma-mysql
 COPY --from=build --chown=nestjs:nodejs /app/prisma.config.ts ./
 RUN mkdir -p spec && chown nestjs:nodejs spec
 USER nestjs
