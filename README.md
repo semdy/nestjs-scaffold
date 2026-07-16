@@ -6,7 +6,7 @@
 - Redis 客户端
 - RabbitMQ 发布与消费示例
 - OpenAPI / Swagger
-- JWT 鉴权、RBAC 角色守卫
+- JWT 鉴权、基于权限码的 RBAC（用户多角色、租户自定义角色）
 - Access token + refresh token 模式，refresh token 存库并只保存哈希
 - 请求级多租户隔离，默认通过 `x-tenant-id` 贯穿上下文
 - 全局异常过滤器、局部异常过滤器示例
@@ -43,7 +43,7 @@ http://localhost:3000/api/health
 tenant slug: default
 email: admin@example.com
 password: change-me-123
-role: system_admin
+role: system_admin（内置角色，不可修改或删除）
 ```
 
 启动日志会输出默认租户 ID。登录后，受保护接口会优先使用 JWT 中的 `tenantId` 作为租户上下文。`x-tenant-id` 可以继续传，但只用于和 JWT 交叉校验：
@@ -62,15 +62,32 @@ curl -X POST http://localhost:3000/api/auth/login \
   -d '{"email":"admin@example.com","password":"change-me-123"}'
 ```
 
-登录会返回：
+登录会返回当前租户下的角色和权限：
 
 ```json
 {
   "accessToken": "...",
   "refreshToken": "...",
-  "user": {}
+  "user": {},
+  "roles": ["system_admin"],
+  "permissions": ["tenant.create", "user.read"]
 }
 ```
+
+也支持邮箱/手机号验证码登录。开发环境默认将验证码写入应用日志；生产环境通过
+`VERIFY_CODE_DELIVERY_WEBHOOK_URL` 接入实际邮件和短信网关。验证码存放在 Redis，
+默认 5 分钟有效、60 秒内不可重复发送，验证成功后立即删除：
+
+```text
+POST /api/auth/verification/email
+POST /api/auth/verification/phone
+POST /api/auth/login/email-code
+POST /api/auth/login/phone-code
+```
+
+验证码登录会自动注册新用户，并加入默认租户、授予 `member` 角色。已有用户只允许登录
+自己已加入的租户。已登录用户可通过 `POST /api/auth/switch-tenant` 切换到另一个已有成员
+关系的活跃租户；`GET /api/auth/my-access` 可刷新当前角色和权限。
 
 `accessToken` 默认 2 小时过期，可通过 `JWT_EXPIRES_IN=2h` 调整。`refreshToken` 默认 30 天过期，可通过 `REFRESH_TOKEN_EXPIRES_IN_DAYS=30` 调整。
 
@@ -151,32 +168,50 @@ docker compose up --build -d
 
 ```text
 src/
-  auth/        JWT 登录、策略、DTO
+  access/      当前租户角色/权限聚合与缓存
+  auth/        密码/验证码登录、租户切换、JWT
   common/      装饰器、守卫、过滤器、拦截器、中间件
   config/      环境变量校验和应用配置
   database/    启动种子
   generated/   Prisma 自动生成（gitignored）
   health/      DB/Redis 健康检查
+  permissions/ 权限字典模块
   prisma/      PrismaService、PrismaModule、健康指示器
   queue/       RabbitMQ 发布服务
   redis/       Redis 客户端
+  roles/       内置与租户自定义角色模块
   tenancy/     租户服务和 AsyncLocalStorage 请求上下文
-  users/       多租户用户示例模块
+  users/       用户、租户成员关系和多角色分配
 ```
 
-## 多租户约定
+## 多租户与权限约定
 
-所有租户隔离模型带 `tenantId` 字段，主键使用应用层生成的 UUID v7（`uuid` 包的 `v7()`），兼顾分布式 ID 与索引写入局部性。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并显式加入 `where` 条件。全局 `TenantGuard` 会对已登录请求优先采用 JWT 中的 `tenantId`，如果请求同时传了 `x-tenant-id`，则必须与 JWT 一致；未登录的公开接口才会使用 header 或 `tenantSlug` 来定位登录租户。`User` 模型的 `passwordHash` 字段通过 Prisma 全局 `omit` 配置默认不返回，需要时用 `omit: { passwordHash: false }` 显式包含。
+`User` 是全局身份，租户归属由 `TenantMembership` 表表达；角色通过
+`UserRoleAssignment(userId, tenantId, roleId)` 按租户分配，因此一个用户可加入多个租户，
+并在每个租户拥有多个角色。业务查询必须从 `TenancyContext.requireTenantId()` 读取当前租户并
+显式加入租户条件。全局 `TenantGuard` 会交叉校验 header 与 JWT 中的 `tenantId`。
 
-租户管理接口属于平台级能力，只允许 `system_admin` 访问；普通租户 `admin` 只能管理当前租户下的用户。
+内置角色为 `system_admin`、`admin`、`member`、`viewer`，不可修改、删除或更改权限；自定义
+角色严格绑定当前租户。控制器可以同时使用 `@Roles(...)` 和 `@Permissions(...)`：单独声明时
+分别按角色或权限检查，同时声明时必须两项都通过。守卫从数据库/Redis 加载用户在当前租户
+的访问范围；角色、角色权限、用户角色或权限发生变化后会自动删除相关缓存，下一次请求从
+数据库重建。
+
+`system_admin` 自动拥有全部启用权限；租户管理员创建角色、配置权限或给用户分配角色时，
+只能授予自己当前拥有的权限，且不能授予 `system_admin`。`tenant.*` 和权限字典写权限属于
+不可委派的平台权限，不能配置给租户自定义角色。租户管理接口同时要求 `system_admin`
+角色及对应权限。权限字典支持创建自定义权限；内置权限与内置角色一样不可修改或删除。
+
+租户管理权限只授予 `system_admin`；普通租户 `admin` 只能管理当前租户的用户与角色。
 
 ## 索引约定
 
 当前初始 schema 已包含基础索引：
 
 - `tenants.slug` 唯一索引，用于租户 slug 查找
-- `users(tenantId, email)` 唯一约束，用于同租户内邮箱唯一和登录查询
-- `users(tenantId, active, createdAt)` 复合索引，用于租户用户列表
+- `users.email`、`users(countryCode, phone)` 唯一约束，用于全局登录身份
+- `tenant_memberships(tenantId, active, createdAt)`，用于租户成员列表
+- `user_role_assignments(tenantId, roleId)`，用于按租户解析多角色
 - `refresh_tokens.tokenHash` 唯一索引，用于 refresh token 校验
 - `refresh_tokens(userId, revokedAt, expiresAt)` 复合索引，用于用户 token 管理和过期 token 清理
 
@@ -209,6 +244,10 @@ npm run prisma:studio            # 可视化数据库浏览器
 - MySQL：`prisma/schema-mysql.prisma`
 
 Migration 文件分别存放在 `prisma/migrations/`（PostgreSQL）和 `prisma/migrations-mysql/`（MySQL）。`prisma.config.ts` 根据 `DB_TYPE` 自动选择对应的 schema 和 migration 目录。
+
+本次 PostgreSQL 升级会把旧表中跨租户重复的邮箱（忽略大小写）合并为一个全局用户身份，
+并保留所有租户成员关系、角色、refresh token 与用户 outbox 事件引用。上线前应先备份数据库，
+并确认这些同邮箱记录确实代表同一个登录身份。
 
 ### 开发环境
 

@@ -1,5 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Permissions } from '../common/decorators/permissions.decorator';
+import { PermissionCode } from '../common/constants';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Roles } from '../common/decorators/roles.decorator';
 import { TenantRequired } from '../common/decorators/tenant-required.decorator';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -15,6 +19,7 @@ export class TenancyController {
   constructor(private readonly tenancyService: TenancyService) {}
 
   @Get()
+  @Permissions(PermissionCode.TenantRead)
   @ApiOperation({
     summary: 'List tenants',
     description: 'Returns active tenants. Pass ?includeInactive=true to list all.',
@@ -27,14 +32,19 @@ export class TenancyController {
   }
 
   @Post()
+  @Permissions(PermissionCode.TenantCreate)
   @ApiOperation({ summary: 'Create tenant' })
   @ApiResponse({ status: 201, description: 'Tenant created', type: TenantResponseDto })
   @ApiResponse({ status: 409, description: 'Slug already exists' })
-  async create(@Body() dto: CreateTenantDto): Promise<TenantResponseDto> {
-    return TenantResponseDto.fromEntity(await this.tenancyService.create(dto));
+  async create(
+    @Body() dto: CreateTenantDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<TenantResponseDto> {
+    return TenantResponseDto.fromEntity(await this.tenancyService.create(dto, actor.sub));
   }
 
   @Get(':id')
+  @Permissions(PermissionCode.TenantRead)
   @ApiOperation({ summary: 'Get tenant by ID' })
   @ApiParam({ name: 'id', description: 'Tenant ID' })
   @ApiResponse({ status: 200, description: 'Tenant found', type: TenantResponseDto })
@@ -44,6 +54,7 @@ export class TenancyController {
   }
 
   @Patch(':id')
+  @Permissions(PermissionCode.TenantUpdate)
   @ApiOperation({ summary: 'Update tenant' })
   @ApiParam({ name: 'id', description: 'Tenant ID' })
   @ApiResponse({ status: 200, description: 'Tenant updated', type: TenantResponseDto })
@@ -53,6 +64,7 @@ export class TenancyController {
   }
 
   @Delete(':id')
+  @Permissions(PermissionCode.TenantDelete)
   @ApiOperation({
     summary: 'Delete tenant',
     description:

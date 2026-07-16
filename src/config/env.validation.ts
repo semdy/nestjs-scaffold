@@ -44,5 +44,9 @@ export const envValidationSchema = Joi.object({
   SEED_ADMIN_ENABLED: Joi.boolean().default(false),
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().min(8).optional(),
+  VERIFY_CODE_TTL_SECONDS: Joi.number().integer().min(60).default(300),
+  VERIFY_CODE_COOLDOWN_SECONDS: Joi.number().integer().min(1).default(60),
+  VERIFY_CODE_FIXED: Joi.string().length(6).optional(),
+  VERIFY_CODE_DELIVERY_WEBHOOK_URL: Joi.string().uri().optional(),
   OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72),
 });

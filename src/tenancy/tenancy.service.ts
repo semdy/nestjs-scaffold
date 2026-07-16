@@ -39,7 +39,7 @@ export class TenancyService {
     return tenant;
   }
 
-  async create(dto: CreateTenantDto) {
+  async create(dto: CreateTenantDto, creatorUserId: string) {
     const exists = await this.prisma.tenant.findUnique({
       where: { slug: dto.slug },
       select: { id: true },
@@ -48,8 +48,19 @@ export class TenancyService {
       throw new ConflictException('Tenant slug already exists');
     }
 
-    return this.prisma.tenant.create({
-      data: { ...dto },
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.create({ data: { ...dto } });
+      await tx.tenantMembership.create({
+        data: { userId: creatorUserId, tenantId: tenant.id },
+      });
+      const systemRole = await tx.role.findFirstOrThrow({
+        where: { tenantId: null, code: 'system_admin', builtIn: true },
+        select: { id: true },
+      });
+      await tx.userRoleAssignment.create({
+        data: { userId: creatorUserId, tenantId: tenant.id, roleId: systemRole.id },
+      });
+      return tenant;
     });
   }
 

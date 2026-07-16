@@ -10,4 +10,10 @@ export class AuthResponseDto {
 
   @ApiProperty({ type: UserResponseDto })
   user: UserResponseDto;
+
+  @ApiProperty({ type: [String] })
+  roles: string[];
+
+  @ApiProperty({ type: [String] })
+  permissions: string[];
 }

@@ -1,17 +1,24 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
-
-import { Prisma } from '../generated/prisma/client';
-import { UserRole } from '../common/constants';
-import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
-import { RedisService } from '../redis/redis.service';
+import { AccessService } from '../access/access.service';
 import { LAST_LOGOUT_PREFIX } from '../common/constants';
 import { parseTtlSeconds } from '../common/utils/parse-ttl';
-import { TenancyContext } from '../tenancy/tenancy-context.service';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { USER_CREATED_ROUTING_KEY } from '../queue/events/user-created.event';
+import { RedisService } from '../redis/redis.service';
+import { RolesService } from '../roles/roles.service';
+import { TenancyContext } from '../tenancy/tenancy-context.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+
+const userAccessInclude = (tenantId: string) => ({
+  roleAssignments: {
+    where: { tenantId, role: { enabled: true } },
+    include: { role: true },
+  },
+});
 
 @Injectable()
 export class UsersService {
@@ -20,154 +27,157 @@ export class UsersService {
     private readonly tenancyContext: TenancyContext,
     private readonly configService: ConfigService,
     private readonly redis: RedisService,
+    private readonly rolesService: RolesService,
+    private readonly accessService: AccessService,
   ) {}
 
-  async create(dto: Omit<CreateUserDto, 'role'> & { role?: UserRole }) {
+  async create(dto: CreateUserDto, actorId: string) {
     const tenantId = this.tenancyContext.requireTenantId();
     const email = dto.email.toLowerCase();
-    const exists = await this.prisma.user.findFirst({
-      where: { tenantId, email },
-      select: { id: true },
-    });
-    if (exists) {
-      throw new ConflictException('User email already exists in this tenant');
+    if (dto.roleIds?.length) {
+      await this.rolesService.assertRolesAssignable(actorId, tenantId, dto.roleIds);
+    }
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      const membership = await this.prisma.tenantMembership.findUnique({
+        where: { userId_tenantId: { userId: existing.id, tenantId } },
+      });
+      if (membership) throw new ConflictException('User already belongs to this tenant');
     }
 
-    const rounds = this.configService.get<number>('BCRYPT_ROUNDS', 12);
-    const passwordHash = await bcrypt.hash(dto.password, rounds);
-
+    const passwordHash = await bcrypt.hash(
+      dto.password,
+      this.configService.get<number>('BCRYPT_ROUNDS', 12),
+    );
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            tenantId,
-            email,
-            name: dto.name,
-            passwordHash,
-            role: dto.role ?? 'member',
-          },
+        const user = existing
+          ? await tx.user.update({
+              where: { id: existing.id },
+              data: { active: true, passwordHash: existing.passwordHash ?? passwordHash },
+            })
+          : await tx.user.create({
+              data: { email, name: dto.name, passwordHash },
+            });
+        await tx.tenantMembership.create({ data: { userId: user.id, tenantId } });
+        const roleIds = dto.roleIds?.length
+          ? dto.roleIds
+          : [
+              (
+                await tx.role.findFirstOrThrow({
+                  where: { tenantId: null, code: 'member', enabled: true },
+                  select: { id: true },
+                })
+              ).id,
+            ];
+        await tx.userRoleAssignment.createMany({
+          data: roleIds.map((roleId) => ({ userId: user.id, tenantId, roleId })),
         });
-        const occurredAt = new Date().toISOString();
-
-        // CDC subscribes to inserts in outbox_events and forwards them to the queue.
         await tx.outboxEvent.create({
           data: {
-            tenantId: user.tenantId,
+            tenantId,
             aggregateType: 'user',
             aggregateId: user.id,
             routingKey: USER_CREATED_ROUTING_KEY,
-            payload: {
-              userId: user.id,
-              tenantId: user.tenantId,
-              email: user.email,
-              occurredAt,
-            },
+            payload: { userId: user.id, tenantId, email, occurredAt: new Date().toISOString() },
           },
         });
-
-        return user;
+        return tx.user.findUniqueOrThrow({
+          where: { id: user.id },
+          include: userAccessInclude(tenantId),
+        });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('User email already exists in this tenant');
+        throw new ConflictException('User email already exists');
       }
       throw error;
     }
   }
 
   async findAllForTenant() {
+    const tenantId = this.tenancyContext.requireTenantId();
     return this.prisma.user.findMany({
-      where: { tenantId: this.tenancyContext.requireTenantId(), active: true },
+      where: { memberships: { some: { tenantId, active: true } } },
+      include: userAccessInclude(tenantId),
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findByIdForTenant(id: string) {
+    const tenantId = this.tenancyContext.requireTenantId();
     const user = await this.prisma.user.findFirst({
-      where: { id, tenantId: this.tenancyContext.requireTenantId(), active: true },
+      where: { id, memberships: { some: { tenantId, active: true } } },
+      include: userAccessInclude(tenantId),
     });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
-  async findByEmailWithPassword(tenantId: string, email: string) {
-    return this.prisma.user.findFirst({
-      where: { tenantId, email: email.toLowerCase(), active: true },
+  findByEmailWithPassword(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
       omit: { passwordHash: false },
     });
   }
 
   async update(id: string, dto: UpdateUserDto) {
     const tenantId = this.tenancyContext.requireTenantId();
-    const user = await this.prisma.user.findFirst({
-      where: { id, tenantId },
-      select: { id: true },
-    });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    await this.findByIdForTenant(id);
     const data: Prisma.UserUpdateInput = {};
-
-    /**
-     * 因为 (tenantId, email) 有数据库唯一约束：
-     *
-     *   @@unique([tenantId, email], map: "UQ_users_tenant_email")
-     *
-     * 同一个租户下永远不可能有两个相同邮箱的用户。这个应用层检查只是为了把 DB 的约束冲突转成友好的 409 报错。
-     */
-    if (dto.email) {
-      const email = dto.email.toLowerCase();
-      const existing = await this.prisma.user.findFirst({
-        where: { tenantId, email, active: true },
-        select: { id: true },
-      });
-      if (existing && existing.id !== id) {
-        throw new ConflictException('User email already exists in this tenant');
-      }
-      data.email = email;
-    }
-
-    if (dto.name !== undefined) {
-      data.name = dto.name;
-    }
-
+    if (dto.email) data.email = dto.email.toLowerCase();
+    if (dto.name !== undefined) data.name = dto.name;
     if (dto.password !== undefined) {
-      const rounds = this.configService.get<number>('BCRYPT_ROUNDS', 12);
-      data.passwordHash = await bcrypt.hash(dto.password, rounds);
+      data.passwordHash = await bcrypt.hash(
+        dto.password,
+        this.configService.get<number>('BCRYPT_ROUNDS', 12),
+      );
     }
-
-    if (dto.role !== undefined) {
-      data.role = dto.role;
-    }
-
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id },
       data,
+      include: userAccessInclude(tenantId),
     });
+    await this.accessService.invalidateUser(id);
+    return result;
+  }
+
+  async setRoles(id: string, roleIds: string[], actorId: string) {
+    const tenantId = this.tenancyContext.requireTenantId();
+    await this.findByIdForTenant(id);
+    await this.rolesService.assertRolesAssignable(actorId, tenantId, roleIds);
+    await this.prisma.$transaction([
+      this.prisma.userRoleAssignment.deleteMany({ where: { userId: id, tenantId } }),
+      this.prisma.userRoleAssignment.createMany({
+        data: roleIds.map((roleId) => ({ userId: id, tenantId, roleId })),
+        skipDuplicates: true,
+      }),
+    ]);
+    await this.accessService.invalidateUser(id, tenantId);
+    return this.findByIdForTenant(id);
   }
 
   async remove(id: string, hard = false): Promise<void> {
     const tenantId = this.tenancyContext.requireTenantId();
-    const user = await this.prisma.user.findFirst({
-      where: { id, tenantId },
-      select: { id: true },
-    });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    await this.findByIdForTenant(id);
     if (hard) {
-      await this.prisma.user.delete({ where: { id } });
+      await this.prisma.$transaction([
+        this.prisma.userRoleAssignment.deleteMany({ where: { userId: id, tenantId } }),
+        this.prisma.tenantMembership.delete({
+          where: { userId_tenantId: { userId: id, tenantId } },
+        }),
+      ]);
+      if ((await this.prisma.tenantMembership.count({ where: { userId: id } })) === 0) {
+        await this.prisma.user.delete({ where: { id } });
+      }
     } else {
-      await this.prisma.user.update({ where: { id }, data: { active: false } });
+      await this.prisma.tenantMembership.update({
+        where: { userId_tenantId: { userId: id, tenantId } },
+        data: { active: false },
+      });
     }
-
-    // 即时吊销该用户所有 access token
-    const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '2h');
-    const ttlSeconds = parseTtlSeconds(expiresIn);
+    await this.accessService.invalidateUser(id, tenantId);
+    const ttlSeconds = parseTtlSeconds(this.configService.get<string>('JWT_EXPIRES_IN', '2h'));
     await this.redis.set(`${LAST_LOGOUT_PREFIX}${id}`, String(Math.floor(Date.now() / 1000)), {
       ttlSeconds,
     });

@@ -1,48 +1,35 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { UserRole } from '../../common/constants';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UserResponseDto {
-  @ApiProperty()
-  id: string;
-
-  @ApiProperty()
-  tenantId: string;
-
-  @ApiProperty()
-  email: string;
-
-  @ApiProperty()
-  name: string;
-
-  @ApiProperty({ enum: ['system_admin', 'admin', 'member', 'viewer'] })
-  role: UserRole;
-
-  @ApiProperty()
-  active: boolean;
-
-  @ApiProperty()
-  createdAt: Date;
-
-  @ApiProperty()
-  updatedAt: Date;
+  @ApiProperty() id: string;
+  @ApiPropertyOptional() email?: string;
+  @ApiPropertyOptional() phone?: string;
+  @ApiPropertyOptional() countryCode?: string;
+  @ApiProperty() name: string;
+  @ApiProperty() active: boolean;
+  @ApiProperty({ type: [String] }) roles: string[];
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
 
   static fromEntity(user: {
     id: string;
-    tenantId: string;
-    email: string;
+    email: string | null;
+    phone?: string | null;
+    countryCode?: string | null;
     name: string;
-    role: string;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
+    roleAssignments?: Array<{ role: { code: string } }>;
   }): UserResponseDto {
     return {
       id: user.id,
-      tenantId: user.tenantId,
-      email: user.email,
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.phone ? { phone: user.phone } : {}),
+      ...(user.countryCode ? { countryCode: user.countryCode } : {}),
       name: user.name,
-      role: user.role as UserRole,
       active: user.active,
+      roles: user.roleAssignments?.map(({ role }) => role.code) ?? [],
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

@@ -2,11 +2,12 @@ import { Controller, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { DlqConsumerService } from './dlq-consumer.service';
-import { Roles } from '../common/decorators/roles.decorator';
+import { Permissions } from '../common/decorators/permissions.decorator';
+import { PermissionCode } from '../common/constants';
 
 @ApiTags('adminQueue')
 @Controller('admin/queue')
-@Roles('system_admin')
+@Permissions(PermissionCode.DeadLetterRetry)
 export class QueueAdminController {
   constructor(private readonly dlqConsumer: DlqConsumerService) {}
 

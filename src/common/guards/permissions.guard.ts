@@ -1,18 +1,18 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AccessService } from '../../access/access.service';
-import { ROLES_KEY, SYSTEM_ADMIN_ROLE } from '../constants';
+import { PERMISSIONS_KEY, PermissionCodeValue, SYSTEM_ADMIN_ROLE } from '../constants';
 import { HttpRequestContext } from '../interfaces/http-request.interface';
 
 @Injectable()
-export class RolesGuard implements CanActivate {
+export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly accessService: AccessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+    const required = this.reflector.getAllAndOverride<PermissionCodeValue[]>(PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -23,8 +23,8 @@ export class RolesGuard implements CanActivate {
 
     const access = await this.accessService.getUserAccess(user.sub, user.tenantId);
     if (access.roles.includes(SYSTEM_ADMIN_ROLE)) return true;
-    if (!required.some((role) => access.roles.includes(role))) {
-      throw new ForbiddenException('Insufficient role');
+    if (!required.some((permission) => access.permissions.includes(permission))) {
+      throw new ForbiddenException('Insufficient permission');
     }
     return true;
   }

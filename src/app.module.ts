@@ -7,8 +7,10 @@ import { RedisThrottlerStorage } from './redis/redis-throttler-storage';
 import { RedisService } from './redis/redis.service';
 import { ValidationPipe } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
+import { AccessModule } from './access/access.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { TenantGuard } from './common/guards/tenant.guard';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
@@ -23,6 +25,8 @@ import { RedisModule } from './redis/redis.module';
 import { TenancyModule } from './tenancy/tenancy.module';
 import { UsersModule } from './users/users.module';
 import { AppController } from './app.controller';
+import { RolesModule } from './roles/roles.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
@@ -46,11 +50,14 @@ import { AppController } from './app.controller';
       }),
     }),
     PrismaModule,
+    AccessModule,
     TenancyModule,
     RedisModule,
     QueueModule,
     AuthModule,
     UsersModule,
+    RolesModule,
+    PermissionsModule,
     HealthModule,
   ],
   controllers: [AppController],
@@ -62,6 +69,7 @@ import { AppController } from './app.controller';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
     SeedService,
   ],
 })

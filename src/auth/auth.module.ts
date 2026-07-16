@@ -7,10 +7,13 @@ import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { AccessModule } from '../access/access.module';
+import { VerificationCodeService } from './verification-code.service';
 
 @Module({
   imports: [
     UsersModule,
+    AccessModule,
     TenancyModule,
     PassportModule,
     JwtModule.registerAsync({
@@ -22,6 +25,6 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, VerificationCodeService],
 })
 export class AuthModule {}

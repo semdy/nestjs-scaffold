@@ -36,8 +36,10 @@ async function configureSecurity(app: App, configService: ConfigService): Promis
       import('@fastify/helmet'),
       import('@fastify/compress'),
     ]);
-    await app.register(fastifyHelmet);
-    await app.register(fastifyCompress);
+    // Nest's Fastify adapter and plugins may resolve compatible Fastify patch versions
+    // with distinct TypeScript identities. The runtime plugin contracts remain identical.
+    await app.register(fastifyHelmet as never);
+    await app.register(fastifyCompress as never);
     return;
   }
 
