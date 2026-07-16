@@ -61,8 +61,8 @@ export class SeedService implements OnApplicationBootstrap {
     for (const permission of BUILT_IN_PERMISSIONS) {
       await this.prisma.permission.upsert({
         where: { code: permission.code },
-        create: { ...permission, builtIn: true },
-        update: { name: permission.name, builtIn: true, enabled: true },
+        create: permission,
+        update: { name: permission.name, enabled: true },
       });
     }
     const definitions = [

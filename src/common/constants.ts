@@ -23,9 +23,6 @@ export const PermissionCode = {
   RoleDelete: 'role.delete',
   RoleAssignPermissions: 'role.assign_permissions',
   PermissionRead: 'permission.read',
-  PermissionCreate: 'permission.create',
-  PermissionUpdate: 'permission.update',
-  PermissionDelete: 'permission.delete',
   TenantRead: 'tenant.read',
   TenantCreate: 'tenant.create',
   TenantUpdate: 'tenant.update',
@@ -47,9 +44,6 @@ export const BUILT_IN_PERMISSIONS: ReadonlyArray<{ code: PermissionCodeValue; na
   { code: PermissionCode.RoleDelete, name: '删除角色' },
   { code: PermissionCode.RoleAssignPermissions, name: '配置角色权限' },
   { code: PermissionCode.PermissionRead, name: '查看权限字典' },
-  { code: PermissionCode.PermissionCreate, name: '创建权限' },
-  { code: PermissionCode.PermissionUpdate, name: '更新权限' },
-  { code: PermissionCode.PermissionDelete, name: '删除权限' },
   { code: PermissionCode.TenantRead, name: '查看租户' },
   { code: PermissionCode.TenantCreate, name: '创建租户' },
   { code: PermissionCode.TenantUpdate, name: '更新租户' },
@@ -72,9 +66,6 @@ export const TENANT_ADMIN_PERMISSIONS: readonly PermissionCodeValue[] = [
 ];
 
 export const PLATFORM_PERMISSION_CODES: readonly PermissionCodeValue[] = [
-  PermissionCode.PermissionCreate,
-  PermissionCode.PermissionUpdate,
-  PermissionCode.PermissionDelete,
   PermissionCode.TenantRead,
   PermissionCode.TenantCreate,
   PermissionCode.TenantUpdate,

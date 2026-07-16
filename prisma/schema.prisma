@@ -83,7 +83,6 @@ model Permission {
   code        String   @unique(map: "UQ_permissions_code") @db.VarChar(100)
   name        String   @db.VarChar(100)
   description String   @default("") @db.VarChar(255)
-  builtIn     Boolean  @default(false)
   enabled     Boolean  @default(true)
   createdAt   DateTime @default(now()) @db.Timestamp()
   updatedAt   DateTime @updatedAt @db.Timestamp()
