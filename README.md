@@ -101,6 +101,11 @@ ALIYUN_MAIL_FROM_NAME=NestJS Scaffold
 网关方式。未显式设置 Provider 时会按“阿里云凭证 → Webhook → 开发日志”自动选择；生产环境
 没有可用 Provider 时应用拒绝启动。
 
+邮件主题和 HTML 使用 Handlebars 模板渲染，验证码模板位于
+`src/notification/templates/verification-code.hbs`。模板变量包括 `appName`、`code` 和
+`expiresInMinutes`，变量默认进行 HTML 转义；新增邮件类型时在 `EmailTemplateService` 注册模板
+即可，不需要修改阿里云投递代码。
+
 验证码登录会自动注册新用户，并加入默认租户、授予 `member` 角色。已有用户只允许登录
 自己已加入的租户。已登录用户可通过 `POST /api/auth/switch-tenant` 切换到另一个已有成员
 关系的活跃租户；`GET /api/auth/my-access` 可刷新当前角色和权限。

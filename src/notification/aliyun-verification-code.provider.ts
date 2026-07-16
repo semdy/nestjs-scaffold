@@ -6,6 +6,7 @@ import {
   VerificationCodeChannel,
   VerificationCodeDeliveryProvider,
 } from './verification-code-delivery.provider';
+import { EmailTemplateService } from './email-template.service';
 
 export interface AliyunVerificationCodeConfig {
   accessKeyId: string;
@@ -15,6 +16,7 @@ export interface AliyunVerificationCodeConfig {
   mailFromAddress: string;
   mailFromName: string;
   appName: string;
+  codeTtlMinutes: number;
 }
 
 interface AliyunClients {
@@ -29,6 +31,7 @@ export class AliyunVerificationCodeProvider implements VerificationCodeDeliveryP
   constructor(
     private readonly config: AliyunVerificationCodeConfig,
     clients?: AliyunClients,
+    private readonly templates = new EmailTemplateService(),
   ) {
     this.clients = clients ?? this.createClients();
   }
@@ -76,6 +79,11 @@ export class AliyunVerificationCodeProvider implements VerificationCodeDeliveryP
 
   private async sendEmail(target: string, code: string): Promise<void> {
     try {
+      const email = this.templates.render('verification-code', {
+        appName: this.config.appName,
+        code,
+        expiresInMinutes: this.config.codeTtlMinutes,
+      });
       const response = await this.clients.mail.singleSendMail(
         new SingleSendMailRequest({
           accountName: this.config.mailFromAddress,
@@ -83,8 +91,8 @@ export class AliyunVerificationCodeProvider implements VerificationCodeDeliveryP
           fromAlias: this.config.mailFromName,
           replyToAddress: true,
           toAddress: target,
-          subject: `${this.config.appName} verification code`,
-          htmlBody: `<p>Your verification code is:</p><p><strong>${code}</strong></p><p>This code expires in 5 minutes.</p>`,
+          subject: email.subject,
+          htmlBody: email.html,
         }),
       );
       if (!response.body) throw new Error('Aliyun DirectMail API returned an empty response');

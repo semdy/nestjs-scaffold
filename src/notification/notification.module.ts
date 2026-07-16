@@ -10,6 +10,7 @@ import {
   VerificationCodeDeliveryProvider,
 } from './verification-code-delivery.provider';
 import { WebhookVerificationCodeProvider } from './webhook-verification-code.provider';
+import { EmailTemplateService } from './email-template.service';
 
 type ProviderName = 'aliyun' | 'webhook' | 'log';
 
@@ -21,6 +22,7 @@ function requireConfig(config: ConfigService, key: string): string {
 
 export function createVerificationCodeDeliveryProvider(
   config: ConfigService,
+  templates = new EmailTemplateService(),
 ): VerificationCodeDeliveryProvider {
   const configured = config.get<ProviderName>('VERIFY_CODE_PROVIDER');
   const provider =
@@ -42,8 +44,9 @@ export function createVerificationCodeDeliveryProvider(
         config.get<string>('ALIYUN_MAIL_FROM_NAME')?.trim() ||
         config.get<string>('APP_NAME', 'nestjs-scaffold'),
       appName: config.get<string>('APP_NAME', 'nestjs-scaffold'),
+      codeTtlMinutes: Math.ceil(config.get<number>('VERIFY_CODE_TTL_SECONDS', 300) / 60),
     };
-    return new AliyunVerificationCodeProvider(aliyunConfig);
+    return new AliyunVerificationCodeProvider(aliyunConfig, undefined, templates);
   }
 
   if (provider === 'webhook') {
@@ -60,9 +63,10 @@ export function createVerificationCodeDeliveryProvider(
 
 @Module({
   providers: [
+    EmailTemplateService,
     {
       provide: VERIFICATION_CODE_DELIVERY,
-      inject: [ConfigService],
+      inject: [ConfigService, EmailTemplateService],
       useFactory: createVerificationCodeDeliveryProvider,
     },
   ],

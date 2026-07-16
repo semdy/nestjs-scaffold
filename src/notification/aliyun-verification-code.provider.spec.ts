@@ -10,6 +10,7 @@ describe('AliyunVerificationCodeProvider', () => {
     mailFromAddress: 'noreply@example.com',
     mailFromName: 'Example App',
     appName: 'Example App',
+    codeTtlMinutes: 5,
   };
 
   it('sends the verification code through Aliyun SMS template parameters', async () => {
