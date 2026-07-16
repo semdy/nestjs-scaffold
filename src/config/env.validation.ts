@@ -47,6 +47,13 @@ export const envValidationSchema = Joi.object({
   VERIFY_CODE_TTL_SECONDS: Joi.number().integer().min(60).default(300),
   VERIFY_CODE_COOLDOWN_SECONDS: Joi.number().integer().min(1).default(60),
   VERIFY_CODE_FIXED: Joi.string().length(6).optional(),
+  VERIFY_CODE_PROVIDER: Joi.string().valid('log', 'webhook', 'aliyun').optional(),
   VERIFY_CODE_DELIVERY_WEBHOOK_URL: Joi.string().uri().optional(),
+  ALIBABA_CLOUD_ACCESS_KEY_ID: Joi.string().optional(),
+  ALIBABA_CLOUD_ACCESS_KEY_SECRET: Joi.string().optional(),
+  ALIYUN_SMS_SIGN_NAME: Joi.string().optional(),
+  ALIYUN_SMS_TEMPLATE_CODE: Joi.string().optional(),
+  ALIYUN_MAIL_FROM_ADDRESS: Joi.string().email().optional(),
+  ALIYUN_MAIL_FROM_NAME: Joi.string().optional(),
   OUTBOX_RETENTION_HOURS: Joi.number().integer().min(1).default(72),
 });

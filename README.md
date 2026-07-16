@@ -74,9 +74,9 @@ curl -X POST http://localhost:3000/api/auth/login \
 }
 ```
 
-也支持邮箱/手机号验证码登录。开发环境默认将验证码写入应用日志；生产环境通过
-`VERIFY_CODE_DELIVERY_WEBHOOK_URL` 接入实际邮件和短信网关。验证码存放在 Redis，
-默认 5 分钟有效、60 秒内不可重复发送，验证成功后立即删除：
+也支持邮箱/手机号验证码登录。验证码存放在 Redis，默认 5 分钟有效、60 秒内不可重复发送，
+验证成功后原子删除。开发环境默认将验证码写入应用日志；生产环境可以使用通用 Webhook，
+或者阿里云短信与 DirectMail Provider：
 
 ```text
 POST /api/auth/verification/email
@@ -84,6 +84,22 @@ POST /api/auth/verification/phone
 POST /api/auth/login/email-code
 POST /api/auth/login/phone-code
 ```
+
+阿里云 Provider 使用官方 TypeScript V2 SDK。短信模板需要包含名为 `code` 的变量：
+
+```env
+VERIFY_CODE_PROVIDER=aliyun
+ALIBABA_CLOUD_ACCESS_KEY_ID=your-access-key-id
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=your-access-key-secret
+ALIYUN_SMS_SIGN_NAME=已审核的短信签名
+ALIYUN_SMS_TEMPLATE_CODE=SMS_123456789
+ALIYUN_MAIL_FROM_ADDRESS=noreply@example.com
+ALIYUN_MAIL_FROM_NAME=NestJS Scaffold
+```
+
+也可设置 `VERIFY_CODE_PROVIDER=webhook` 和 `VERIFY_CODE_DELIVERY_WEBHOOK_URL` 保留原有通用
+网关方式。未显式设置 Provider 时会按“阿里云凭证 → Webhook → 开发日志”自动选择；生产环境
+没有可用 Provider 时应用拒绝启动。
 
 验证码登录会自动注册新用户，并加入默认租户、授予 `member` 角色。已有用户只允许登录
 自己已加入的租户。已登录用户可通过 `POST /api/auth/switch-tenant` 切换到另一个已有成员
@@ -176,6 +192,7 @@ src/
   database/    启动种子
   generated/   Prisma 自动生成（gitignored）
   health/      DB/Redis 健康检查
+  notification/ 验证码日志、Webhook、阿里云短信和邮件 Provider
   permissions/ 权限字典模块
   prisma/      PrismaService、PrismaModule、健康指示器
   queue/       RabbitMQ 发布服务

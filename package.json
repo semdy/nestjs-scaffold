@@ -24,6 +24,9 @@
     "prisma:schema:mysql": "node scripts/generate-mysql-schema.mjs"
   },
   "dependencies": {
+    "@alicloud/dm20151123": "^1.10.2",
+    "@alicloud/dysmsapi20170525": "^4.6.0",
+    "@alicloud/openapi-client": "^0.4.15",
     "@fastify/compress": "^8.3.1",
     "@fastify/helmet": "^13.0.2",
     "@fastify/static": "^9.1.3",

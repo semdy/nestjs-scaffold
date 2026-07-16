@@ -1,23 +1,21 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  ServiceUnavailableException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, randomInt } from 'node:crypto';
 import { RedisService } from '../redis/redis.service';
+import {
+  VERIFICATION_CODE_DELIVERY,
+  VerificationCodeDeliveryProvider,
+} from '../notification/verification-code-delivery.provider';
 
 export type VerificationChannel = 'email' | 'phone';
 
 @Injectable()
 export class VerificationCodeService {
-  private readonly logger = new Logger(VerificationCodeService.name);
-
   constructor(
     private readonly redis: RedisService,
     private readonly config: ConfigService,
+    @Inject(VERIFICATION_CODE_DELIVERY)
+    private readonly delivery: VerificationCodeDeliveryProvider,
   ) {}
 
   async send(channel: VerificationChannel, target: string): Promise<void> {
@@ -36,7 +34,7 @@ export class VerificationCodeService {
     });
 
     try {
-      await this.deliver(channel, target, code);
+      await this.delivery.deliver(channel, target, code);
     } catch (error) {
       await this.redis.delete(this.codeKey(channel, target), this.cooldownKey(channel, target));
       throw error;
@@ -67,27 +65,6 @@ export class VerificationCodeService {
     return createHmac('sha256', this.config.getOrThrow<string>('JWT_SECRET'))
       .update(code)
       .digest('hex');
-  }
-
-  private async deliver(channel: VerificationChannel, target: string, code: string): Promise<void> {
-    const webhookUrl = this.config.get<string>('VERIFY_CODE_DELIVERY_WEBHOOK_URL');
-    if (webhookUrl) {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ channel, target, code }),
-      });
-      if (!response.ok) {
-        throw new ServiceUnavailableException('Verification code provider rejected delivery');
-      }
-      return;
-    }
-    if (this.config.get<string>('NODE_ENV', 'development') === 'production') {
-      throw new ServiceUnavailableException(
-        'Verification code delivery provider is not configured',
-      );
-    }
-    this.logger.log(`Verification code for ${channel}:${target} is ${code}`);
   }
 
   private codeKey(channel: VerificationChannel, target: string): string {

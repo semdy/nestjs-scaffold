@@ -9,11 +9,13 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { AccessModule } from '../access/access.module';
 import { VerificationCodeService } from './verification-code.service';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
     UsersModule,
     AccessModule,
+    NotificationModule,
     TenancyModule,
     PassportModule,
     JwtModule.registerAsync({
