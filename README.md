@@ -281,7 +281,7 @@ npm run prisma:studio            # 可视化数据库浏览器
 - PostgreSQL：`prisma/schema.prisma`
 - MySQL：`prisma-mysql/schema.prisma`
 
-Migration 文件分别存放在 `prisma/migrations/`（PostgreSQL）和 `prisma/migrations-mysql/`（MySQL）。`prisma.config.ts` 根据 `DB_TYPE` 自动选择对应的 schema 和 migration 目录。
+Migration 文件分别存放在 `prisma/migrations/`（PostgreSQL）和 `prisma-mysql/migrations/`（MySQL）。`prisma.config.ts` 根据 `DB_TYPE` 自动选择对应的 schema 和 migration 目录，因此在 `DB_TYPE=mysql` 下执行 Prisma Migrate 时，新 migration 会直接生成到 `prisma-mysql/migrations/`。
 
 本次 PostgreSQL 升级会把旧表中跨租户重复的邮箱（忽略大小写）合并为一个全局用户身份，
 并保留所有租户成员关系、角色、refresh token 与用户 outbox 事件引用。上线前应先备份数据库，

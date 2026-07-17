@@ -18,7 +18,7 @@ function buildDatabaseUrl() {
 export default defineConfig({
   schema: isMysql ? 'prisma-mysql/schema.prisma' : 'prisma/schema.prisma',
   migrations: {
-    path: isMysql ? 'prisma/migrations-mysql' : 'prisma/migrations',
+    path: isMysql ? 'prisma-mysql/migrations' : 'prisma/migrations',
   },
   datasource: {
     url: buildDatabaseUrl(),
