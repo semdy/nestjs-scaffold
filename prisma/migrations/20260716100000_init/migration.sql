@@ -7,8 +7,8 @@ CREATE TABLE "tenants" (
     "slug" VARCHAR(120) NOT NULL,
     "name" VARCHAR(160) NOT NULL,
     "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL,
 
     CONSTRAINT "tenants_pkey" PRIMARY KEY ("id")
 );
@@ -18,38 +18,38 @@ CREATE TABLE "users" (
     "id" VARCHAR(36) NOT NULL,
     "email" VARCHAR(180),
     "phone" VARCHAR(32),
-    "countryCode" VARCHAR(8),
+    "country_code" VARCHAR(8),
     "name" VARCHAR(120) NOT NULL,
-    "passwordHash" VARCHAR(255),
+    "password_hash" VARCHAR(255),
     "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "tenant_memberships" (
-    "userId" VARCHAR(36) NOT NULL,
-    "tenantId" VARCHAR(36) NOT NULL,
+    "user_id" VARCHAR(36) NOT NULL,
+    "tenant_id" VARCHAR(36) NOT NULL,
     "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL,
 
-    CONSTRAINT "tenant_memberships_pkey" PRIMARY KEY ("userId","tenantId")
+    CONSTRAINT "tenant_memberships_pkey" PRIMARY KEY ("user_id","tenant_id")
 );
 
 -- CreateTable
 CREATE TABLE "roles" (
     "id" VARCHAR(36) NOT NULL,
-    "tenantId" VARCHAR(36),
+    "tenant_id" VARCHAR(36),
     "code" VARCHAR(50) NOT NULL,
     "name" VARCHAR(100) NOT NULL,
     "description" VARCHAR(255) NOT NULL DEFAULT '',
-    "builtIn" BOOLEAN NOT NULL DEFAULT false,
+    "built_in" BOOLEAN NOT NULL DEFAULT false,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL,
 
     CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
 );
@@ -61,44 +61,44 @@ CREATE TABLE "permissions" (
     "name" VARCHAR(100) NOT NULL,
     "description" VARCHAR(255) NOT NULL DEFAULT '',
     "enabled" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL,
 
     CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "role_permissions" (
-    "roleId" VARCHAR(36) NOT NULL,
-    "permissionId" VARCHAR(36) NOT NULL,
+    "role_id" VARCHAR(36) NOT NULL,
+    "permission_id" VARCHAR(36) NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
 
-    CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("roleId","permissionId")
+    CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("role_id","permission_id")
 );
 
 -- CreateTable
 CREATE TABLE "user_role_assignments" (
-    "userId" VARCHAR(36) NOT NULL,
-    "tenantId" VARCHAR(36) NOT NULL,
-    "roleId" VARCHAR(36) NOT NULL,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "user_id" VARCHAR(36) NOT NULL,
+    "tenant_id" VARCHAR(36) NOT NULL,
+    "role_id" VARCHAR(36) NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "user_role_assignments_pkey" PRIMARY KEY ("userId","tenantId","roleId")
+    CONSTRAINT "user_role_assignments_pkey" PRIMARY KEY ("user_id","tenant_id","role_id")
 );
 
 -- CreateTable
 CREATE TABLE "refresh_tokens" (
     "id" VARCHAR(36) NOT NULL,
-    "tenantId" VARCHAR(36) NOT NULL,
-    "userId" VARCHAR(36) NOT NULL,
-    "tokenHash" VARCHAR(64) NOT NULL,
-    "expiresAt" TIMESTAMP NOT NULL,
-    "revokedAt" TIMESTAMP,
-    "replacedByTokenId" VARCHAR(36),
-    "userAgent" VARCHAR(512),
-    "ipAddress" VARCHAR(64),
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP NOT NULL,
+    "tenant_id" VARCHAR(36) NOT NULL,
+    "user_id" VARCHAR(36) NOT NULL,
+    "token_hash" VARCHAR(64) NOT NULL,
+    "expires_at" TIMESTAMP NOT NULL,
+    "revoked_at" TIMESTAMP,
+    "replaced_by_token_id" VARCHAR(36),
+    "user_agent" VARCHAR(512),
+    "ip_address" VARCHAR(64),
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL,
 
     CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
 );
@@ -106,24 +106,24 @@ CREATE TABLE "refresh_tokens" (
 -- CreateTable
 CREATE TABLE "outbox_events" (
     "id" VARCHAR(36) NOT NULL,
-    "tenantId" VARCHAR(36) NOT NULL,
-    "aggregateType" VARCHAR(80) NOT NULL,
-    "aggregateId" VARCHAR(36) NOT NULL,
-    "routingKey" VARCHAR(120) NOT NULL,
+    "tenant_id" VARCHAR(36) NOT NULL,
+    "aggregate_type" VARCHAR(80) NOT NULL,
+    "aggregate_id" VARCHAR(36) NOT NULL,
+    "routing_key" VARCHAR(120) NOT NULL,
     "payload" JSON NOT NULL,
-    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "outbox_events_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "processed_events" (
-    "eventId" VARCHAR(36) NOT NULL,
-    "routingKey" VARCHAR(120) NOT NULL,
-    "processedAt" TIMESTAMP NOT NULL,
-    "expiresAt" TIMESTAMP NOT NULL,
+    "event_id" VARCHAR(36) NOT NULL,
+    "routing_key" VARCHAR(120) NOT NULL,
+    "processed_at" TIMESTAMP NOT NULL,
+    "expires_at" TIMESTAMP NOT NULL,
 
-    CONSTRAINT "processed_events_pkey" PRIMARY KEY ("eventId")
+    CONSTRAINT "processed_events_pkey" PRIMARY KEY ("event_id")
 );
 
 -- CreateIndex
@@ -133,19 +133,19 @@ CREATE UNIQUE INDEX "IDX_tenants_slug" ON "tenants"("slug");
 CREATE UNIQUE INDEX "UQ_users_email" ON "users"("email");
 
 -- CreateIndex
-CREATE INDEX "IDX_users_active_created_at" ON "users"("active", "createdAt");
+CREATE INDEX "IDX_users_active_created_at" ON "users"("active", "created_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UQ_users_country_phone" ON "users"("countryCode", "phone");
+CREATE UNIQUE INDEX "UQ_users_country_phone" ON "users"("country_code", "phone");
 
 -- CreateIndex
-CREATE INDEX "IDX_memberships_tenant_active_created_at" ON "tenant_memberships"("tenantId", "active", "createdAt");
+CREATE INDEX "IDX_memberships_tenant_active_created_at" ON "tenant_memberships"("tenant_id", "active", "created_at");
 
 -- CreateIndex
-CREATE INDEX "IDX_roles_tenant_enabled_code" ON "roles"("tenantId", "enabled", "code");
+CREATE INDEX "IDX_roles_tenant_enabled_code" ON "roles"("tenant_id", "enabled", "code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UQ_roles_tenant_code" ON "roles"("tenantId", "code");
+CREATE UNIQUE INDEX "UQ_roles_tenant_code" ON "roles"("tenant_id", "code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UQ_permissions_code" ON "permissions"("code");
@@ -154,64 +154,64 @@ CREATE UNIQUE INDEX "UQ_permissions_code" ON "permissions"("code");
 CREATE INDEX "IDX_permissions_enabled_code" ON "permissions"("enabled", "code");
 
 -- CreateIndex
-CREATE INDEX "IDX_role_permissions_permission_id" ON "role_permissions"("permissionId");
+CREATE INDEX "IDX_role_permissions_permission_id" ON "role_permissions"("permission_id");
 
 -- CreateIndex
-CREATE INDEX "IDX_user_roles_tenant_role" ON "user_role_assignments"("tenantId", "roleId");
+CREATE INDEX "IDX_user_roles_tenant_role" ON "user_role_assignments"("tenant_id", "role_id");
 
 -- CreateIndex
-CREATE INDEX "IDX_user_roles_role_id" ON "user_role_assignments"("roleId");
+CREATE INDEX "IDX_user_roles_role_id" ON "user_role_assignments"("role_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "IDX_refresh_tokens_token_hash" ON "refresh_tokens"("tokenHash");
+CREATE UNIQUE INDEX "IDX_refresh_tokens_token_hash" ON "refresh_tokens"("token_hash");
 
 -- CreateIndex
-CREATE INDEX "IDX_refresh_tokens_tenant_id" ON "refresh_tokens"("tenantId");
+CREATE INDEX "IDX_refresh_tokens_tenant_id" ON "refresh_tokens"("tenant_id");
 
 -- CreateIndex
-CREATE INDEX "IDX_refresh_tokens_user_id" ON "refresh_tokens"("userId");
+CREATE INDEX "IDX_refresh_tokens_user_id" ON "refresh_tokens"("user_id");
 
 -- CreateIndex
-CREATE INDEX "IDX_refresh_tokens_user_revoked_expires" ON "refresh_tokens"("userId", "revokedAt", "expiresAt");
+CREATE INDEX "IDX_refresh_tokens_user_revoked_expires" ON "refresh_tokens"("user_id", "revoked_at", "expires_at");
 
 -- CreateIndex
-CREATE INDEX "IDX_outbox_events_tenant_created_at" ON "outbox_events"("tenantId", "createdAt");
+CREATE INDEX "IDX_outbox_events_tenant_created_at" ON "outbox_events"("tenant_id", "created_at");
 
 -- CreateIndex
-CREATE INDEX "IDX_outbox_events_aggregate" ON "outbox_events"("aggregateType", "aggregateId");
+CREATE INDEX "IDX_outbox_events_aggregate" ON "outbox_events"("aggregate_type", "aggregate_id");
 
 -- CreateIndex
-CREATE INDEX "IDX_outbox_events_routing_key_created_at" ON "outbox_events"("routingKey", "createdAt");
+CREATE INDEX "IDX_outbox_events_routing_key_created_at" ON "outbox_events"("routing_key", "created_at");
 
 -- CreateIndex
-CREATE INDEX "IDX_processed_events_expires" ON "processed_events"("expiresAt");
+CREATE INDEX "IDX_processed_events_expires" ON "processed_events"("expires_at");
 
 -- AddForeignKey
-ALTER TABLE "tenant_memberships" ADD CONSTRAINT "tenant_memberships_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tenant_memberships" ADD CONSTRAINT "tenant_memberships_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "tenant_memberships" ADD CONSTRAINT "tenant_memberships_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tenant_memberships" ADD CONSTRAINT "tenant_memberships_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "roles" ADD CONSTRAINT "roles_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "roles" ADD CONSTRAINT "roles_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
