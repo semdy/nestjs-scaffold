@@ -482,14 +482,10 @@ binlog-format=ROW
 binlog-row-image=FULL
 ```
 
-MySQL 用户需要有 `REPLICATION CLIENT` 权限才能让 Debezium 读取 binlog。首次启动后执行一次：
-
-```bash
-docker compose -f docker-compose.dev.yml exec mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD:-root}" -e \
-  "GRANT REPLICATION CLIENT, REPLICATION SLAVE ON *.* TO \`app\`@'%'; FLUSH PRIVILEGES;"
-```
-
-> 也支持 `REPLICATION SLAVE`，Debezium MySQL connector 在某些快照模式下需要用到。
+MySQL 用户需要 `RELOAD`、`SHOW DATABASES`、`REPLICATION CLIENT` 和
+`REPLICATION SLAVE` 权限，才能让 Debezium 完成一致性快照并读取 binlog。Compose 会在全新 MySQL 数据卷首次初始化时，通过
+`docker/mysql/init/01-grant-debezium.sh` 自动为 `MYSQL_USER` 授权，无需手工执行
+`GRANT`。已有数据卷不会重复运行初始化脚本，需要手工补授权或重建数据卷。
 
 启动示例：
 

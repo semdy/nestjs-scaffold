@@ -90,6 +90,7 @@ services:
         '--binlog-row-image=FULL',
         '--gtid-mode=ON',
         '--enforce-gtid-consistency=ON',
+        '--log-bin-trust-function-creators=ON',
       ]
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
@@ -100,8 +101,13 @@ services:
       - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      test:
+        [
+          'CMD-SHELL',
+          'mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
