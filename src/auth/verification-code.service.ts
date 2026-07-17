@@ -45,6 +45,9 @@ export class VerificationCodeService {
     const key = this.codeKey(channel, target);
     const candidate = this.hash(code);
     await this.redis.ensureConnected();
+
+    // Atomically compare and delete so the same code cannot be consumed by concurrent requests.
+    // GET + DEL has a race window, while GETDEL would let an invalid attempt delete a valid code.
     const consumed = await this.redis.client.eval(
       `local value = redis.call('GET', KEYS[1])
        if value and value == ARGV[1] then
